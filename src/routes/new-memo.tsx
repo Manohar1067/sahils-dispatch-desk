@@ -65,6 +65,7 @@ const emptyForm = (): MemoInput => ({
   dispatchDate: new Date().toISOString(),
   fromLocation: "",
   toLocation: "",
+  consignor: "",
   transportName: "",
   consigneeId: "",
   truckId: "",
@@ -175,7 +176,7 @@ function NewMemo() {
       const balance = netFreight - (f.advance || 0);
       const totalExpenses = (f.commission || 0) + (f.loadingCharges || 0) + (f.goodsMamuli || 0) + (f.tds || 0) + (f.localDriverGuide || 0);
       const finalPayable = balance - totalExpenses;
-      const totalHire = f.totalHire || netFreight;
+      const totalHire = f.totalHire || 0;
       return { ...f, netFreight, balance, totalExpenses, finalPayable, totalHire };
     });
   }, [form.weightTons, form.ratePerTon, form.advance, form.commission, form.loadingCharges, form.goodsMamuli, form.tds, form.localDriverGuide, freightOverride]);
@@ -324,6 +325,14 @@ function NewMemo() {
           <Field label="From"><Input className="h-11" value={form.fromLocation} onChange={(e) => set("fromLocation", e.target.value)} /></Field>
           <Field label="To"><Input className="h-11" value={form.toLocation} onChange={(e) => set("toLocation", e.target.value)} /></Field>
           <Field label="G.C. No."><Input className="h-11" value={form.gcNo || ""} onChange={(e) => set("gcNo", e.target.value)} /></Field>
+          <Field label="Consignor">
+            <Input
+              className="h-11"
+              value={form.consignor || ""}
+              placeholder="Party consigning the goods"
+              onChange={(e) => set("consignor", e.target.value)}
+            />
+          </Field>
           <Field label="Consignee" required>
             <Combobox
               options={(consignees ?? []).map((c) => ({ value: c.companyName, label: c.companyName, keywords: `${c.city} ${c.contactPerson}` }))}
@@ -355,6 +364,7 @@ function NewMemo() {
           <Field label="Driver Name"><Input className="h-11" value={form.driverName} onChange={(e) => set("driverName", e.target.value)} /></Field>
           <Field label="Owner Name"><Input className="h-11" value={form.ownerName} onChange={(e) => set("ownerName", e.target.value)} /></Field>
           <Field label="Owner Phone"><Input className="h-11" value={form.ownerPhone} onChange={(e) => set("ownerPhone", e.target.value)} /></Field>
+          <Field label="Transport Name"><Input className="h-11" value={form.transportName} onChange={(e) => set("transportName", e.target.value)} /></Field>
         </Section>
 
         <Section title="Goods Information">
@@ -383,7 +393,7 @@ function NewMemo() {
           <Field label="Loading Charges (₹)"><NumericInput value={form.loadingCharges || 0} onValueChange={(v) => set("loadingCharges", v)} /></Field>
           <Field label="TDS (₹)"><NumericInput value={form.tds || 0} onValueChange={(v) => set("tds", v)} /></Field>
           <Field label="Local Driver / Guide (₹)"><NumericInput value={form.localDriverGuide || 0} onValueChange={(v) => set("localDriverGuide", v)} /></Field>
-          <Field label="Office Mamuli (₹)"><NumericInput value={form.goodsMamuli || 0} onValueChange={(v) => set("goodsMamuli", v)} /></Field>
+          <Field label="Payment Mamuli (₹)"><NumericInput value={form.goodsMamuli || 0} onValueChange={(v) => set("goodsMamuli", v)} /></Field>
           <Field label="Total Expenses (₹)"><Input className="h-11" value={form.totalExpenses} readOnly /></Field>
           <Field label="Paid At"><Input className="h-11" value={form.paidAt || ""} onChange={(e) => set("paidAt", e.target.value)} placeholder="e.g. Visakhapatnam" /></Field>
           <Field label="Paid By">

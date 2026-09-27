@@ -76,6 +76,9 @@ export interface Memo {
   dispatchDate: string;
   fromLocation: string;
   toLocation: string;
+  /** Source party that consigns the goods. Distinct from `fromLocation` (the
+   *  dispatch origin) and from `consigneeName` (the delivery party). */
+  consignor: string;
   transportName: string;
   consigneeId: string;
   truckId: string;
@@ -218,6 +221,7 @@ const MEMO_FIELD_MAP: Record<string, string> = {
   dispatchDate: "dispatch_date",
   fromLocation: "from_location",
   toLocation: "to_location",
+  consignor: "consignor",
   transportName: "transport_name",
   consigneeId: "consignee_id",
   truckId: "truck_id",
@@ -264,6 +268,7 @@ function rowToMemo(r: any): Memo {
     dispatchDate: r.dispatch_date,
     fromLocation: r.from_location ?? "",
     toLocation: r.to_location ?? "",
+    consignor: r.consignor ?? "",
     transportName: r.transport_name ?? "",
     consigneeId: r.consignee_id,
     truckId: r.truck_id,
@@ -653,21 +658,44 @@ export async function peekNextMemoNumber(): Promise<string> {
   return `SRL-${year}-${String(next).padStart(6, "0")}`;
 }
 
+/**
+ * `consignor` is newer than the deployed database schema
+ * (supabase/migrations/20260927000000_add_memo_consignor.sql). If the app runs
+ * before that DDL has been applied, PostgREST rejects EVERY memo write with
+ * "Could not find the 'consignor' column of 'memos' in the schema cache".
+ * Detecting exactly that case lets the write be retried once without the single
+ * new key, so the new field can never hard-break memo saving. Every other error
+ * is surfaced unchanged.
+ */
+function isMissingConsignorColumn(error: { message?: string | null } | null): boolean {
+  const message = String(error?.message ?? "");
+  return message.includes("consignor") && /column|schema/i.test(message);
+}
+
 export async function createMemo(input: MemoInput): Promise<Memo> {
   const { data: memoNumber, error: numErr } = await supabase.rpc("next_memo_number");
   if (numErr) throw numErr;
+  const insert = (r: Record<string, unknown>) => supabase.from("memos").insert(r).select().single();
   const row = { ...memoToRow(input), memo_number: memoNumber, is_deleted: false };
-  const { data, error } = await supabase.from("memos").insert(row).select().single();
+  let { data, error } = await insert(row);
+  if (error && "consignor" in row && isMissingConsignorColumn(error)) {
+    const { consignor, ...withoutConsignor } = row;
+    void consignor;
+    ({ data, error } = await insert(withoutConsignor));
+  }
   if (error) throw error;
   return rowToMemo(data);
 }
 export async function updateMemo(id: string, patch: Partial<MemoInput>): Promise<Memo> {
-  const { data, error } = await supabase
-    .from("memos")
-    .update(memoToRow(patch))
-    .eq("id", id)
-    .select()
-    .single();
+  const run = (r: Record<string, unknown>) =>
+    supabase.from("memos").update(r).eq("id", id).select().single();
+  const row = memoToRow(patch);
+  let { data, error } = await run(row);
+  if (error && "consignor" in row && isMissingConsignorColumn(error)) {
+    const { consignor, ...withoutConsignor } = row;
+    void consignor;
+    ({ data, error } = await run(withoutConsignor));
+  }
   if (error) throw error;
   return rowToMemo(data);
 }
@@ -1703,9 +1731,9 @@ export async function importAllDataXlsx(file: File): Promise<ImportResult> {
       const consigneeNameName = cellStr(r, "consigneeName");
       const row = memoToRow({
         dispatchDate: cellDate(r, "dispatchDate"),
-        fromLocation: cellStr(r, "fromLocation"),
-        toLocation: cellStr(r, "toLocation"),
-        transportName: cellStr(r, "transportName"),
+          fromLocation: cellStr(r, "fromLocation"),
+          toLocation: cellStr(r, "toLocation"),
+          transportName: cellStr(r, "transportName"),
         truckNumber: truckNumberName,
         consigneeName: consigneeNameName,
         driverName: cellStr(r, "driverName"),

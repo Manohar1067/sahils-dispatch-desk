@@ -11,13 +11,16 @@ const mockMemo: Memo = {
   id: "mock-1",
   memoNumber: "0001",
   dispatchDate: "2026-08-28",
-  fromLocation: "kerala",
-  toLocation: "karnataka",
-  transportName: "Kareem Transports",
+  // Mirrors a real OLD memo (SRL-2026-000023): stored Consignor is EMPTY and
+  // must print "—" — never the From value.
+  fromLocation: "VIZINAGARAM",
+  toLocation: "PUNE",
+  consignor: "",
+  transportName: "Sri Lakshmi Narasimha Roadlines & Carriers",
   consigneeId: "mock-c",
   truckId: "mock-t",
   truckNumber: "ap12we2345",
-  consigneeName: "Kareem Transports",
+  consigneeName: "KANDOL STEEL & POWER INFRASTRUCTURE LIMITED BHIVANDI WORKS",
   driverName: "werty",
   ownerName: "mnbvc",
   ownerPhone: "",
@@ -88,7 +91,7 @@ function TestReceipt() {
           memo={mockMemo}
           settings={mockSettings}
           truck={{ id: "mock-t", truckNumber: "ap12we2345", ownerName: "mnbvc", ownerPhone: "", driverName: "werty", driverPhone: "" }}
-          consignee={{ id: "mock-c", companyName: "Kareem Transports", address: "", contactPerson: "", phone: "", city: "", state: "" }}
+          consignee={{ id: "mock-c", companyName: mockMemo.consigneeName, address: "", contactPerson: "", phone: "", city: "", state: "" }}
           terms={longTerms}
         />
       </div>
@@ -100,7 +103,7 @@ function TestReceipt() {
               memo={mockMemo}
               settings={mockSettings}
               truck={{ id: "mock-t", truckNumber: "ap12we2345", ownerName: "mnbvc", ownerPhone: "", driverName: "werty", driverPhone: "" }}
-              consignee={{ id: "mock-c", companyName: "Kareem Transports", address: "", contactPerson: "", phone: "", city: "", state: "" }}
+              consignee={{ id: "mock-c", companyName: mockMemo.consigneeName, address: "", contactPerson: "", phone: "", city: "", state: "" }}
               terms={longTerms}
             />
           </div>,

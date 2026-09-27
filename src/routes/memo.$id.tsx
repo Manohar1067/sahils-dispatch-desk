@@ -182,6 +182,18 @@ export const ReceiptPage = forwardRef<
   // numbers in old memo records always print/display uppercased.
   const truckNo = normalizeTruckNumber(truck?.truckNumber || memo.truckNumber) || "—";
   const consigneeName = consignee?.companyName || memo.consigneeName || "—";
+  /**
+   * CONSIGNOR is its own stored value and NOTHING else.
+   *
+   * There is deliberately NO fallback to `fromLocation`, `toLocation`,
+   * `consigneeName` or any other field. Memos created before the `consignor`
+   * column existed have no stored Consignor, so they must print "—" rather
+   * than borrow an unrelated field's value and present it as if it had been
+   * entered. `formatDisplayText` already maps null / undefined / empty /
+   * whitespace-only to "", so the "—" here is the only empty-state handling
+   * needed. `consigneeName` above remains the delivery party.
+   */
+  const consignorName = formatDisplayText(memo.consignor) || "—";
   const logoEl = settings.logoUrl ? (
     <img src={settings.logoUrl} className="h-[72px] w-auto max-w-[100px] object-contain" alt="Company logo" style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.15))" }} />
   ) : (
@@ -216,6 +228,7 @@ export const ReceiptPage = forwardRef<
   };
 
   const s = (px: number) => Math.max(1, Math.round(px * compact));
+  const fs = (px: number) => Math.max(1, Math.round(px * compact * 1.08));
 
   // ---- Single-A4 auto-compaction: measure once, settle, never churn --------
   // The previous implementation looped: `compact` was in its own dependency
@@ -244,6 +257,7 @@ export const ReceiptPage = forwardRef<
     const key = JSON.stringify([
       memo.memoNumber, memo.dispatchDate, memo.gcNo, memo.materialName,
       memo.ownerName, memo.driverName, memo.fromLocation, memo.toLocation,
+      memo.consignor, memo.consigneeName,
       memo.description, memo.ratePerTon, memo.weightTons, memo.netFreight,
       memo.totalHire, memo.advance, memo.balance, memo.paidAt, memo.transportName,
       memo.commission, memo.loadingCharges, memo.tds, memo.localDriverGuide,
@@ -313,20 +327,40 @@ export const ReceiptPage = forwardRef<
     borderRight: bBorder ? `1px solid ${NAVY}` : "none",
     borderBottom: bBot ? `1px solid ${NAVY}` : "none",
     padding: `${s(4)}px 8px`,
-    fontSize: `${s(12.5)}px`,
+    fontSize: `${fs(12.5)}px`,
     lineHeight: 1.25,
+    // A flex/grid child will not shrink below its content width unless it is
+    // told to, which is what let long values push across the cell border.
+    minWidth: 0,
+    overflowWrap: "anywhere",
   });
   const cellLabel: React.CSSProperties = {
     color: "#3A4356",
     fontWeight: 900,
-    fontSize: `${s(13.5)}px`,
+    fontSize: `${fs(13.5)}px`,
     letterSpacing: "0.3px",
     whiteSpace: "nowrap",
   };
-  const cellValue: React.CSSProperties = { fontWeight: 800, color: "#111", fontSize: `${s(14.5)}px` };
+  /**
+   * Free-text values (Consignor, Consignee, Description, Owner, Driver, From,
+   * To, Paid At …) must stay INSIDE their own cell at the increased text size.
+   * `anywhere` breaks a single long word that has no spaces, and `break-word`
+   * wraps normally-spaced text — together they stop a long party name from
+   * being clipped or crossing the divider.
+   */
+  const cellValue: React.CSSProperties = {
+    fontWeight: 800,
+    color: "#111",
+    fontSize: `${fs(14.5)}px`,
+    lineHeight: 1.2,
+    minWidth: 0,
+    maxWidth: "100%",
+    overflowWrap: "anywhere",
+    wordBreak: "break-word",
+  };
   const cellHeading: React.CSSProperties = {
     padding: `${s(4)}px 8px`,
-    fontSize: `${s(12)}px`,
+    fontSize: `${fs(12)}px`,
     fontWeight: 900,
     color: "#0B2A55",
     background: "#F5F6FA",
@@ -337,11 +371,11 @@ export const ReceiptPage = forwardRef<
 
   const detailRow = (label: string, value: ReactNode, opts: React.CSSProperties = {}) => (
     <div style={{ ...cell(true, true), ...opts, display: "flex", alignItems: "stretch" }}>
-      <div style={{ width: "40%", padding: `${s(5)}px 8px`, background: "#F5F6FA", borderRight: `1px solid ${NAVY}`, display: "flex", alignItems: "center" }}>
+      <div style={{ width: "40%", flexShrink: 0, padding: `${s(5)}px 8px`, background: "#F5F6FA", borderRight: `1px solid ${NAVY}`, display: "flex", alignItems: "center" }}>
         <span style={cellLabel}>{label}</span>
       </div>
-      <div style={{ flex: 1, padding: `${s(5)}px 8px`, display: "flex", alignItems: "center" }}>
-        <span style={{ ...cellValue, ...(opts.fontSize ? { fontSize: opts.fontSize } : {}) }}>{value}</span>
+      <div style={{ flex: 1, minWidth: 0, padding: `${s(5)}px 8px`, display: "flex", alignItems: "center" }}>
+        <span style={{ ...cellValue, display: "block", width: "100%", ...(opts.fontSize ? { fontSize: opts.fontSize } : {}) }}>{value}</span>
       </div>
     </div>
   );
@@ -379,27 +413,30 @@ export const ReceiptPage = forwardRef<
         <div className="flex w-[112px] shrink-0 items-center justify-center px-2 py-[6px]">
           {logoEl}
         </div>
-        <div className="flex flex-1 flex-col items-center justify-center px-3 py-[6px] text-center">
+        <div className="flex min-w-0 flex-1 flex-col items-center justify-center px-3 py-[6px] text-center">
           {/* Company name: SRL red with a Castellar-style display serif (fallback
               stack for machines without Castellar). Everything else uses the
-              document body sans font. */}
-          <div style={{ fontSize: `${s(34)}px`, fontWeight: 900, color: RED, lineHeight: 1.05, letterSpacing: "0.2px", fontFamily: CASTELLAR }}>
+              document body sans font. The text stroke thickens the lettering so
+              the heading stays strongly bold at print scale; min-w-0 +
+              overflow-wrap stop a long configured name from pushing into the
+              contact column. */}
+          <div style={{ fontSize: `${fs(34)}px`, fontWeight: 900, color: RED, WebkitTextStroke: "0.6px", lineHeight: 1.05, letterSpacing: "0.2px", fontFamily: CASTELLAR, maxWidth: "100%", overflowWrap: "anywhere", wordBreak: "break-word" }}>
             {settings.companyName || "SAHIL ROAD LINES"}
           </div>
-          <div style={{ fontSize: `${s(14)}px`, fontWeight: 800, color: NAVY, letterSpacing: "0.7px", marginTop: `${s(1)}px` }}>
+          <div style={{ fontSize: `${fs(14)}px`, fontWeight: 800, color: NAVY, letterSpacing: "0.7px", marginTop: `${s(1)}px`, maxWidth: "100%", overflowWrap: "anywhere" }}>
             TRANSPORT CONTRACTORS &amp; COMMISSION AGENTS
           </div>
-          <div style={{ fontSize: `${s(12.5)}px`, lineHeight: 1.25, marginTop: `${s(2)}px` }} className="text-neutral-700">
+          <div style={{ fontSize: `${fs(12.5)}px`, lineHeight: 1.25, marginTop: `${s(2)}px`, maxWidth: "100%", overflowWrap: "anywhere" }} className="text-neutral-700">
             {settings.address}
           </div>
-          <div style={{ fontSize: `${s(12)}px`, fontWeight: 700, color: NAVY, marginTop: `${s(2)}px` }}>
+          <div style={{ fontSize: `${fs(12)}px`, fontWeight: 700, color: NAVY, marginTop: `${s(2)}px`, maxWidth: "100%", overflowWrap: "anywhere" }}>
             {settings.jurisdictionText || "Subject to Visakhapatnam Jurisdiction"}
           </div>
         </div>
         {/* Contact details (cell phones, email, website) — GSTIN removed */}
         <div
           className="flex w-[190px] shrink-0 flex-col justify-center gap-[3px] px-4 py-[6px] text-left"
-          style={{ borderLeft: `1px solid ${NAVY}`, fontSize: `${s(12)}px`, lineHeight: 1.3 }}
+          style={{ borderLeft: `1px solid ${NAVY}`, fontSize: `${fs(12)}px`, lineHeight: 1.3, overflowWrap: "anywhere", wordBreak: "break-word" }}
         >
           {settings.phone && <div className="font-semibold text-neutral-700">Ph: {settings.phone}</div>}
           {settings.email && <div className="text-neutral-600">{settings.email}</div>}
@@ -408,32 +445,34 @@ export const ReceiptPage = forwardRef<
       </div>
 
       {/* ====== 2. MEMO TITLE BAR ====== */}
-      <div className="avoid-break flex items-center justify-between" style={{ borderBottom: `2px solid ${NAVY}`, background: NAVY, color: "#fff", padding: `${s(4)}px 14px` }}>
-        <div style={{ fontSize: `${s(14)}px`, fontWeight: 800 }}>
+      <div className="avoid-break flex items-center justify-between gap-3" style={{ borderBottom: `2px solid ${NAVY}`, background: NAVY, color: "#fff", padding: `${s(4)}px 14px` }}>
+        <div style={{ fontSize: `${fs(14)}px`, fontWeight: 800, minWidth: 0, overflowWrap: "anywhere" }}>
           No. {memo.memoNumber}
         </div>
-        <div style={{ fontSize: `${s(20)}px`, fontWeight: 900, letterSpacing: "2px", color: "#fff" }}>
+        <div style={{ fontSize: `${fs(20)}px`, fontWeight: 900, letterSpacing: "2px", color: "#fff", textAlign: "center", minWidth: 0, overflowWrap: "anywhere" }}>
           GOODS DESPATCH MEMO
         </div>
-        <div style={{ fontSize: `${s(13)}px`, fontWeight: 700 }}>
+        <div style={{ fontSize: `${fs(13)}px`, fontWeight: 700, minWidth: 0, overflowWrap: "anywhere" }}>
           Date: {formatDate(memo.dispatchDate)}
         </div>
       </div>
 
       {/* ====== 3. MAIN DETAILS TABLE ====== */}
       <div className="avoid-break" style={{ borderBottom: `2px solid ${NAVY}` }}>
-        {/* From | value | To | value — side-by-side on one row */}
+        {/* From | value | To | value — side-by-side on one row. The value cells
+            wrap instead of clipping (overflow:hidden) so a long place name can
+            never be cut off or spill across the To column. */}
         <div className="flex" style={{ borderBottom: `1px solid ${NAVY}` }}>
-          <div style={{ width: "20%", padding: `${s(5)}px 8px`, background: "#F5F6FA", borderRight: `1px solid ${NAVY}`, display: "flex", alignItems: "center" }}>
+          <div style={{ width: "20%", flexShrink: 0, padding: `${s(5)}px 8px`, background: "#F5F6FA", borderRight: `1px solid ${NAVY}`, display: "flex", alignItems: "center" }}>
             <span style={cellLabel}>From:</span>
           </div>
-          <div style={{ width: "30%", padding: `${s(5)}px 8px`, borderRight: `1px solid ${NAVY}`, display: "flex", alignItems: "center", overflow: "hidden" }}>
+          <div style={{ width: "30%", minWidth: 0, padding: `${s(5)}px 8px`, borderRight: `1px solid ${NAVY}`, display: "flex", alignItems: "center" }}>
             <span style={cellValue}>{formatDisplayText(memo.fromLocation) || "—"}</span>
           </div>
-          <div style={{ width: "15%", padding: `${s(5)}px 8px`, background: "#F5F6FA", borderRight: `1px solid ${NAVY}`, display: "flex", alignItems: "center" }}>
+          <div style={{ width: "15%", flexShrink: 0, padding: `${s(5)}px 8px`, background: "#F5F6FA", borderRight: `1px solid ${NAVY}`, display: "flex", alignItems: "center" }}>
             <span style={cellLabel}>To:</span>
           </div>
-          <div style={{ width: "35%", padding: `${s(5)}px 8px`, display: "flex", alignItems: "center", overflow: "hidden" }}>
+          <div style={{ width: "35%", minWidth: 0, padding: `${s(5)}px 8px`, display: "flex", alignItems: "center" }}>
             <span style={cellValue}>{formatDisplayText(memo.toLocation) || "—"}</span>
           </div>
         </div>
@@ -441,21 +480,21 @@ export const ReceiptPage = forwardRef<
         {detailRow("Article:", formatDisplayText(memo.materialName) || "—")}
         {detailRow("Lorry Owner Name:", formatDisplayText(memo.ownerName) || "—")}
         {detailRow("Driver Name:", formatDisplayText(memo.driverName) || "—")}
-        {detailRow("Consignor:", formatDisplayText(memo.fromLocation) || "—")}
+        {detailRow("Consignor:", consignorName)}
         {detailRow("Consignee:", formatDisplayText(consigneeName) || "—")}
         {detailRow("Description:", formatDisplayText(memo.description) || "—")}
         {/* Per Ton Rs. | value | Weight | value — side-by-side on one row */}
         <div className="flex" style={{ borderBottom: `0px solid ${NAVY}` }}>
-          <div style={{ width: "25%", padding: `${s(5)}px 8px`, background: "#F5F6FA", borderRight: `1px solid ${NAVY}`, display: "flex", alignItems: "center" }}>
+          <div style={{ width: "25%", flexShrink: 0, padding: `${s(5)}px 8px`, background: "#F5F6FA", borderRight: `1px solid ${NAVY}`, display: "flex", alignItems: "center" }}>
             <span style={cellLabel}>Per Ton Rs.:</span>
           </div>
-          <div style={{ width: "25%", padding: `${s(5)}px 8px`, borderRight: `1px solid ${NAVY}`, display: "flex", alignItems: "center", overflow: "hidden" }}>
+          <div style={{ width: "25%", minWidth: 0, padding: `${s(5)}px 8px`, borderRight: `1px solid ${NAVY}`, display: "flex", alignItems: "center" }}>
             <span style={cellValue}>{formatMoney(memo.ratePerTon)}</span>
           </div>
-          <div style={{ width: "20%", padding: `${s(5)}px 8px`, background: "#F5F6FA", borderRight: `1px solid ${NAVY}`, display: "flex", alignItems: "center" }}>
+          <div style={{ width: "20%", flexShrink: 0, padding: `${s(5)}px 8px`, background: "#F5F6FA", borderRight: `1px solid ${NAVY}`, display: "flex", alignItems: "center" }}>
             <span style={cellLabel}>Weight:</span>
           </div>
-          <div style={{ width: "30%", padding: `${s(5)}px 8px`, display: "flex", alignItems: "center", overflow: "hidden" }}>
+          <div style={{ width: "30%", minWidth: 0, padding: `${s(5)}px 8px`, display: "flex", alignItems: "center" }}>
             <span style={cellValue}>{memo.weightTons ? `${memo.weightTons} MT` : "—"}</span>
           </div>
         </div>
@@ -463,7 +502,7 @@ export const ReceiptPage = forwardRef<
 
       {/* ====== 4. RED NOTICE BAR ====== */}
       <div className="avoid-break" style={{ borderBottom: `2px solid ${NAVY}`, background: "#C1121F", color: "#fff", padding: `${s(5)}px 14px`, textAlign: "center" }}>
-        <div style={{ fontSize: `${s(13.5)}px`, fontWeight: 900, letterSpacing: "0.6px" }}>
+        <div style={{ fontSize: `${fs(13.5)}px`, fontWeight: 900, letterSpacing: "0.6px" }}>
           Goods Receipt should be arrived within 15 days
         </div>
       </div>
@@ -472,70 +511,70 @@ export const ReceiptPage = forwardRef<
       <div className="avoid-break" style={{ borderBottom: `2px solid ${NAVY}` }}>
         <div className="grid grid-cols-3">
           {/* LEFT: Financial summary */}
-          <div style={{ borderRight: `2px solid ${NAVY}` }}>
+          <div style={{ borderRight: `2px solid ${NAVY}`, minWidth: 0 }}>
             <div style={cellHeading}>Financial</div>
             <div className="flex" style={{ borderBottom: `1px solid ${NAVY}` }}>
-              <div style={{ ...cell(true, false), width: "52%", fontWeight: 900, fontSize: `${s(13)}px` }}>Net Freight:</div>
-              <div style={{ ...cell(false, false), width: "48%", fontWeight: 800, color: NAVY, fontSize: `${s(14.5)}px` }}>{formatMoney(memo.netFreight)}</div>
+              <div style={{ ...cell(true, false), width: "52%", fontWeight: 900, fontSize: `${fs(13)}px` }}>Net Freight:</div>
+              <div style={{ ...cell(false, false), width: "48%", fontWeight: 800, color: NAVY, fontSize: `${fs(14.5)}px` }}>{formatMoney(memo.netFreight)}</div>
             </div>
             <div className="flex" style={{ borderBottom: `1px solid ${NAVY}` }}>
-              <div style={{ ...cell(true, false), width: "52%", fontWeight: 900, fontSize: `${s(13)}px` }}>Total Hire:</div>
-              <div style={{ ...cell(false, false), width: "48%", fontWeight: 800, color: NAVY, fontSize: `${s(14.5)}px` }}>{formatMoney(memo.totalHire)}</div>
+              <div style={{ ...cell(true, false), width: "52%", fontWeight: 900, fontSize: `${fs(13)}px` }}>Total Hire:</div>
+              <div style={{ ...cell(false, false), width: "48%", fontWeight: 800, color: NAVY, fontSize: `${fs(14.5)}px` }}>{formatMoney(memo.totalHire)}</div>
             </div>
             <div className="flex" style={{ borderBottom: `1px solid ${NAVY}` }}>
-              <div style={{ ...cell(true, false), width: "52%", fontWeight: 900, fontSize: `${s(13)}px` }}>Advance:</div>
-              <div style={{ ...cell(false, false), width: "48%", fontWeight: 800, color: NAVY, fontSize: `${s(14.5)}px` }}>{formatMoney(memo.advance)}</div>
+              <div style={{ ...cell(true, false), width: "52%", fontWeight: 900, fontSize: `${fs(13)}px` }}>Advance:</div>
+              <div style={{ ...cell(false, false), width: "48%", fontWeight: 800, color: NAVY, fontSize: `${fs(14.5)}px` }}>{formatMoney(memo.advance)}</div>
             </div>
             <div className="flex" style={{ borderBottom: `1px solid ${NAVY}` }}>
-              <div style={{ ...cell(true, false), width: "52%", fontWeight: 900, fontSize: `${s(13)}px` }}>Balance:</div>
-              <div style={{ ...cell(false, false), width: "48%", fontWeight: 800, color: NAVY, fontSize: `${s(14.5)}px` }}>{formatMoney(memo.balance)}</div>
+              <div style={{ ...cell(true, false), width: "52%", fontWeight: 900, fontSize: `${fs(13)}px` }}>Balance:</div>
+              <div style={{ ...cell(false, false), width: "48%", fontWeight: 800, color: NAVY, fontSize: `${fs(14.5)}px` }}>{formatMoney(memo.balance)}</div>
             </div>
             <div className="flex" style={{ borderBottom: `1px solid ${NAVY}` }}>
-              <div style={{ ...cell(true, false), width: "52%", fontWeight: 900, fontSize: `${s(13)}px` }}>Paid At:</div>
-              <div style={{ ...cell(false, false), width: "48%", fontWeight: 800, color: NAVY, fontSize: `${s(14.5)}px` }}>{formatDisplayText(memo.paidAt) || "—"}</div>
+              <div style={{ ...cell(true, false), width: "52%", fontWeight: 900, fontSize: `${fs(13)}px` }}>Paid At:</div>
+              <div style={{ ...cell(false, false), width: "48%", fontWeight: 800, color: NAVY, fontSize: `${fs(14.5)}px` }}>{formatDisplayText(memo.paidAt) || "—"}</div>
             </div>
           </div>
 
           {/* CENTER: Vehicle (two vertically-centered halves: Truck + Transport) */}
-          <div style={{ borderRight: `2px solid ${NAVY}`, display: "flex", flexDirection: "column" }}>
+          <div style={{ borderRight: `2px solid ${NAVY}`, display: "flex", flexDirection: "column", minWidth: 0 }}>
             <div style={cellHeading}>Vehicle</div>
             <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: `${s(6)}px`, minHeight: 0 }}>
-              <div style={{ fontSize: `${s(14)}px`, fontWeight: 800, color: "#3A4356" }}>Truck No.:</div>
-              <div style={{ fontSize: `${s(22)}px`, fontWeight: 900, color: NAVY, lineHeight: 1.1, textAlign: "center", overflowWrap: "anywhere", wordBreak: "break-word" }}>{truckNo}</div>
+              <div style={{ fontSize: `${fs(14)}px`, fontWeight: 800, color: "#3A4356" }}>Truck No.:</div>
+              <div style={{ fontSize: `${fs(22)}px`, fontWeight: 900, color: NAVY, lineHeight: 1.1, textAlign: "center", overflowWrap: "anywhere", wordBreak: "break-word" }}>{truckNo}</div>
             </div>
             <div style={{ borderTop: `1px solid ${NAVY}` }} />
             <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: `${s(6)}px`, minHeight: 0 }}>
-              <div style={{ fontSize: `${s(14)}px`, fontWeight: 800, color: "#3A4356" }}>Transport:</div>
-              <div style={{ fontSize: `${s(20)}px`, fontWeight: 900, color: NAVY, lineHeight: 1.1, textAlign: "center", overflowWrap: "anywhere", wordBreak: "break-word" }}>{formatDisplayText(memo.transportName) || "—"}</div>
+              <div style={{ fontSize: `${fs(14)}px`, fontWeight: 800, color: "#3A4356" }}>Transport:</div>
+              <div style={{ fontSize: `${fs(20)}px`, fontWeight: 900, color: NAVY, lineHeight: 1.1, textAlign: "center", overflowWrap: "anywhere", wordBreak: "break-word" }}>{formatDisplayText(memo.transportName) || "—"}</div>
             </div>
           </div>
 
           {/* RIGHT: Expenses */}
-          <div>
+          <div style={{ minWidth: 0 }}>
             <div style={cellHeading}>Expenses</div>
             <div className="flex" style={{ borderBottom: `1px solid ${NAVY}` }}>
-              <div style={{ ...cell(true, false), width: "52%", fontWeight: 900, fontSize: `${s(13)}px` }}>Commission:</div>
-              <div style={{ ...cell(false, false), width: "48%", fontWeight: 800, color: NAVY, fontSize: `${s(14.5)}px` }}>{formatMoney(memo.commission)}</div>
+              <div style={{ ...cell(true, false), width: "52%", fontWeight: 900, fontSize: `${fs(13)}px` }}>Commission:</div>
+              <div style={{ ...cell(false, false), width: "48%", fontWeight: 800, color: NAVY, fontSize: `${fs(14.5)}px` }}>{formatMoney(memo.commission)}</div>
             </div>
             <div className="flex" style={{ borderBottom: `1px solid ${NAVY}` }}>
-              <div style={{ ...cell(true, false), width: "52%", fontWeight: 900, fontSize: `${s(13)}px` }}>Loading:</div>
-              <div style={{ ...cell(false, false), width: "48%", fontWeight: 800, color: NAVY, fontSize: `${s(14.5)}px` }}>{formatMoney(memo.loadingCharges)}</div>
+              <div style={{ ...cell(true, false), width: "52%", fontWeight: 900, fontSize: `${fs(13)}px` }}>Loading:</div>
+              <div style={{ ...cell(false, false), width: "48%", fontWeight: 800, color: NAVY, fontSize: `${fs(14.5)}px` }}>{formatMoney(memo.loadingCharges)}</div>
             </div>
             <div className="flex" style={{ borderBottom: `1px solid ${NAVY}` }}>
-              <div style={{ ...cell(true, false), width: "52%", fontWeight: 900, fontSize: `${s(13)}px` }}>T.D.S.:</div>
-              <div style={{ ...cell(false, false), width: "48%", fontWeight: 800, color: NAVY, fontSize: `${s(14.5)}px` }}>{formatMoney(memo.tds)}</div>
+              <div style={{ ...cell(true, false), width: "52%", fontWeight: 900, fontSize: `${fs(13)}px` }}>T.D.S.:</div>
+              <div style={{ ...cell(false, false), width: "48%", fontWeight: 800, color: NAVY, fontSize: `${fs(14.5)}px` }}>{formatMoney(memo.tds)}</div>
             </div>
             <div className="flex" style={{ borderBottom: `1px solid ${NAVY}` }}>
-              <div style={{ ...cell(true, false), width: "52%", fontWeight: 900, fontSize: `${s(13)}px` }}>Local Driver / Guide:</div>
-              <div style={{ ...cell(false, false), width: "48%", fontWeight: 800, color: NAVY, fontSize: `${s(14.5)}px` }}>{formatMoney(memo.localDriverGuide)}</div>
+              <div style={{ ...cell(true, false), width: "52%", fontWeight: 900, fontSize: `${fs(13)}px` }}>Local Driver / Guide:</div>
+              <div style={{ ...cell(false, false), width: "48%", fontWeight: 800, color: NAVY, fontSize: `${fs(14.5)}px` }}>{formatMoney(memo.localDriverGuide)}</div>
             </div>
             <div className="flex" style={{ borderBottom: `1px solid ${NAVY}` }}>
-              <div style={{ ...cell(true, false), width: "52%", fontWeight: 900, fontSize: `${s(13)}px` }}>Office Mamuli:</div>
-              <div style={{ ...cell(false, false), width: "48%", fontWeight: 800, color: NAVY, fontSize: `${s(14.5)}px` }}>{formatMoney(memo.goodsMamuli)}</div>
+              <div style={{ ...cell(true, false), width: "52%", fontWeight: 900, fontSize: `${fs(13)}px` }}>Payment Mamuli:</div>
+              <div style={{ ...cell(false, false), width: "48%", fontWeight: 800, color: NAVY, fontSize: `${fs(14.5)}px` }}>{formatMoney(memo.goodsMamuli)}</div>
             </div>
             <div className="flex">
-              <div style={{ ...cell(true, false), width: "52%", fontWeight: 900, fontSize: `${s(13.5)}px` }}>Total Expenses:</div>
-              <div style={{ ...cell(false, false), width: "48%", fontWeight: 900, color: RED, fontSize: `${s(14.5)}px` }}>{formatMoney(memo.totalExpenses)}</div>
+              <div style={{ ...cell(true, false), width: "52%", fontWeight: 900, fontSize: `${fs(13.5)}px` }}>Total Expenses:</div>
+              <div style={{ ...cell(false, false), width: "48%", fontWeight: 900, color: RED, fontSize: `${fs(14.5)}px` }}>{formatMoney(memo.totalExpenses)}</div>
             </div>
           </div>
         </div>
@@ -546,14 +585,14 @@ export const ReceiptPage = forwardRef<
         className="avoid-break"
         style={{ borderBottom: `2px solid ${NAVY}`, background: "#FDECEE", padding: `${s(5)}px 14px`, textAlign: "center" }}
       >
-        <div style={{ fontSize: `${s(15)}px`, fontWeight: 900, letterSpacing: "1.2px", color: NAVY }}>FINAL PAYABLE</div>
-        <div style={{ fontSize: `${s(22)}px`, fontWeight: 900, color: RED, lineHeight: 1.1, marginTop: `${s(1)}px` }}>
+        <div style={{ fontSize: `${fs(15)}px`, fontWeight: 900, letterSpacing: "1.2px", color: NAVY }}>FINAL PAYABLE</div>
+        <div style={{ fontSize: `${fs(22)}px`, fontWeight: 900, color: RED, lineHeight: 1.1, marginTop: `${s(1)}px` }}>
           {formatMoney(memo.finalPayable)}
         </div>
-        <div style={{ fontSize: `${s(11)}px`, fontWeight: 600, color: NAVY, marginTop: `${s(1)}px` }}>
+        <div style={{ fontSize: `${fs(11)}px`, fontWeight: 600, color: NAVY, marginTop: `${s(1)}px` }}>
           (Rupees {amountInWords(memo.finalPayable)} Only)
         </div>
-        <div style={{ fontSize: `${s(10.5)}px`, fontWeight: 700, color: NAVY, marginTop: `${s(1)}px` }}>
+        <div style={{ fontSize: `${fs(10.5)}px`, fontWeight: 700, color: NAVY, marginTop: `${s(1)}px` }}>
           {memo.finalPaymentDate && <span>Final Payment Date: {formatDate(memo.finalPaymentDate)}</span>}
           {memo.paidBy && <span>  |  Paid By: {memo.paidBy}</span>}
           {memo.paymentMethod && <span>  |  Mode: {memo.paymentMethod}</span>}
@@ -562,7 +601,7 @@ export const ReceiptPage = forwardRef<
 
       {/* ====== 7. DECLARATION ====== */}
       <div className="avoid-break" style={{ borderBottom: `1px solid ${NAVY}`, padding: `${s(4)}px 14px` }}>
-        <div style={{ fontSize: `${s(10.5)}px`, lineHeight: 1.35, color: "#222" }}>
+        <div style={{ fontSize: `${fs(10.5)}px`, lineHeight: 1.35, color: "#222" }}>
           I agree with terms and conditions overleaf and abide by that Received the goods in good condition.
         </div>
       </div>
@@ -570,8 +609,8 @@ export const ReceiptPage = forwardRef<
       {/* ====== 8. TERMS & CONDITIONS ====== */}
       {terms.length > 0 && (
         <div className="avoid-break" style={{ borderBottom: `1px solid ${NAVY}`, padding: `${s(4)}px 14px` }}>
-          <div style={{ fontSize: `${s(11)}px`, fontWeight: 900, color: NAVY, marginBottom: `${s(1)}px`, letterSpacing: "0.5px", textTransform: "uppercase" as const }}>Terms &amp; Conditions</div>
-          <ol className="list-decimal pl-5" style={{ fontSize: `${s(10)}px`, lineHeight: 1.25, color: "#333" }}>
+          <div style={{ fontSize: `${fs(11)}px`, fontWeight: 900, color: NAVY, marginBottom: `${s(1)}px`, letterSpacing: "0.5px", textTransform: "uppercase" as const }}>Terms &amp; Conditions</div>
+          <ol className="list-decimal pl-5" style={{ fontSize: `${fs(10)}px`, lineHeight: 1.25, color: "#333" }}>
             {terms.map((t, i) => <li key={i} className="mb-0" style={{ marginBottom: 0 }}>{t}</li>)}
           </ol>
         </div>
@@ -580,19 +619,19 @@ export const ReceiptPage = forwardRef<
       {/* ====== 9. SIGNATURES ====== */}
       <div className="avoid-break flex" style={{ borderBottom: `1px solid ${NAVY}` }}>
         <div style={{ flex: 1, borderRight: `1px solid ${NAVY}`, padding: `${s(6)}px 14px`, textAlign: "center", minHeight: `${s(130)}px` }}>
-          <div style={{ fontSize: `${s(11)}px`, fontWeight: 700, color: "#555", marginTop: `${s(78)}px` }}>Signature of the Driver</div>
-          <div style={{ fontSize: `${s(10)}px`, fontWeight: 600, color: "#777" }}>on behalf of the Owner</div>
+          <div style={{ fontSize: `${fs(11)}px`, fontWeight: 700, color: "#555", marginTop: `${s(78)}px` }}>Signature of the Driver</div>
+          <div style={{ fontSize: `${fs(10)}px`, fontWeight: 600, color: "#777" }}>on behalf of the Owner</div>
         </div>
         <div style={{ flex: 1, padding: `${s(6)}px 14px`, textAlign: "center", minHeight: `${s(130)}px` }}>
-          <div style={{ fontSize: `${s(11)}px`, fontWeight: 700, color: "#555", marginTop: `${s(78)}px` }}>For <b style={{ color: NAVY, fontWeight: 800 }}>{settings.companyName || "SAHIL ROAD LINES"}</b></div>
-          <div style={{ fontSize: `${s(10)}px`, fontWeight: 600, color: "#777" }}>Authorised Signatory</div>
+          <div style={{ fontSize: `${fs(11)}px`, fontWeight: 700, color: "#555", marginTop: `${s(78)}px` }}>For <b style={{ color: NAVY, fontWeight: 800 }}>{settings.companyName || "SAHIL ROAD LINES"}</b></div>
+          <div style={{ fontSize: `${fs(10)}px`, fontWeight: 600, color: "#777" }}>Authorised Signatory</div>
         </div>
       </div>
 
       {/* ====== 10. BOTTOM WARNING ====== */}
       <div
         className="avoid-break"
-        style={{ background: NAVY, color: "#fff", padding: `${s(4)}px 14px`, textAlign: "center", fontSize: `${s(10.5)}px`, fontWeight: 900, letterSpacing: "0.3px" }}
+        style={{ background: NAVY, color: "#fff", padding: `${s(4)}px 14px`, textAlign: "center", fontSize: `${fs(10.5)}px`, fontWeight: 900, letterSpacing: "0.3px" }}
       >
         Return payment will not get without this Receipt and any other particulars
       </div>

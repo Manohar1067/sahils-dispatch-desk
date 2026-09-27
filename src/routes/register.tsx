@@ -252,7 +252,7 @@ function RegisterPage() {
       "Loading": r.loadingCharges,
       "TDS": r.tds,
       "Local Driver/Guide": r.localDriverGuide ?? "",
-      "Office Mamuli": r.goodsMamuli,
+      "Payment Mamuli": r.goodsMamuli,
       "Paid At": r.paidAt ?? "",
       "Unloading": formatDate(r.unloadingDate),
       "LR Received": formatDate(r.lrReceivedDate),
