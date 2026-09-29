@@ -11,8 +11,9 @@ const mockMemo: Memo = {
   id: "mock-1",
   memoNumber: "0001",
   dispatchDate: "2026-08-28",
-  // Mirrors a real OLD memo (SRL-2026-000023): stored Consignor is EMPTY and
-  // must print "—" — never the From value.
+  // Mirrors a real OLD memo (SRL-2026-000023): the source-party field
+  // (memo.consignor, now printed under the "Consignee:" row) is EMPTY and must
+  // print "—" — never the From value or the delivery party.
   fromLocation: "VIZINAGARAM",
   toLocation: "PUNE",
   consignor: "",

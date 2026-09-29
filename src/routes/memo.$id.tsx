@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Printer, Download, ArrowLeft, Pencil, ChevronDown, Phone, Mail, MapPin, Share2 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
-import { forwardRef, useEffect, useRef, useState, type ReactNode } from "react";
+import { forwardRef, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useAuth, isSuperAdmin } from "@/lib/AuthContext";
 
@@ -181,19 +181,38 @@ export const ReceiptPage = forwardRef<
   // Normalize at render time as a defensive safeguard so legacy lowercase truck
   // numbers in old memo records always print/display uppercased.
   const truckNo = normalizeTruckNumber(truck?.truckNumber || memo.truckNumber) || "—";
-  const consigneeName = consignee?.companyName || memo.consigneeName || "—";
+
   /**
-   * CONSIGNOR is its own stored value and NOTHING else.
+   * CONSIGNOR / CONSIGNEE business mapping (corrected).
    *
-   * There is deliberately NO fallback to `fromLocation`, `toLocation`,
-   * `consigneeName` or any other field. Memos created before the `consignor`
-   * column existed have no stored Consignor, so they must print "—" rather
-   * than borrow an unrelated field's value and present it as if it had been
-   * entered. `formatDisplayText` already maps null / undefined / empty /
-   * whitespace-only to "", so the "—" here is the only empty-state handling
-   * needed. `consigneeName` above remains the delivery party.
+   *   CONSIGNOR = the delivery / destination party
+   *   CONSIGNEE = the source / originating party
+   *
+   * The New Memo form asks for the delivery party in its "Consignor" field and
+   * the source party in its "Consignee" field, so the stored values are read
+   * back the same way here. The two receipt rows keep their EXISTING order and
+   * position — only which stored value feeds each row changed:
+   *
+   *   Consignor: ← the delivery party (the form's Consignor field)
+   *   Consignee: ← the source party   (the form's Consignee field)
+   *
+   * Each value is its OWN stored field and NOTHING else. There is deliberately
+   * NO fallback to `fromLocation`, `toLocation` or the other party. Historical
+   * memos created before the correction therefore keep printing exactly what
+   * was stored — an empty field stays empty ("—") rather than borrowing an
+   * unrelated value. Historical rows are never rewritten by the app.
    */
-  const consignorName = formatDisplayText(memo.consignor) || "—";
+  const consignorName = consignee?.companyName || memo.consigneeName || "—";
+  const consigneeName = formatDisplayText(memo.consignor) || "—";
+
+  // Terms are laid out newspaper-style in columns of at most 5 items each, so a
+  // long list stays compact and readable instead of running the receipt onto a
+  // second page. Each column continues the numbering (start={col*5 + 1}).
+  const termColumns = useMemo(() => {
+    const cols: string[][] = [];
+    for (let i = 0; i < terms.length; i += 5) cols.push(terms.slice(i, i + 5));
+    return cols;
+  }, [terms]);
   const logoEl = settings.logoUrl ? (
     <img src={settings.logoUrl} className="h-[72px] w-auto max-w-[100px] object-contain" alt="Company logo" style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.15))" }} />
   ) : (
@@ -230,6 +249,41 @@ export const ReceiptPage = forwardRef<
   const s = (px: number) => Math.max(1, Math.round(px * compact));
   const fs = (px: number) => Math.max(1, Math.round(px * compact * 1.08));
 
+  // ---- Header heading auto-fit --------------------------------------------
+  // The company name is drawn weight 900, letter-spaced and stroked, then sized
+  // so it spans the FULL width of the centre header column — the largest size
+  // the fixed logo/contact columns leave available. Measuring beats a fixed px
+  // value here: the display serif is a local-only font (the Castellar stack
+  // falls back to Georgia elsewhere), so its metrics vary per machine and a
+  // hard-coded size either looks small or overflows into the contact column.
+  // All fonts are local (no webfonts), so one synchronous measurement in
+  // useLayoutEffect is stable and completes before paint.
+  const [headingPx, setHeadingPx] = useState<number | null>(null);
+  const headingRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const h = headingRef.current;
+    const col = h?.parentElement;
+    if (!h || !col) return;
+    const cs = getComputedStyle(col);
+    const avail =
+      col.clientWidth - parseFloat(cs.paddingLeft || "0") - parseFloat(cs.paddingRight || "0");
+    if (!(avail > 0)) return;
+    const base = parseFloat(h.style.fontSize) || 1;
+    const rect = h.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    // Text width scales linearly with font-size (letter-spacing is em-based),
+    // so a single proportional pass lands on the column width. The 0.99 factor
+    // keeps fractional rounding from nudging a hairline into the contact
+    // column; the clamp bounds the size for short/long configured names.
+    const fitted = base * ((avail * 0.99) / rect.width);
+    const next = Math.max(fs(30), Math.min(fitted, fs(50)));
+    if (headingPx === null || Math.abs(next - headingPx) > 0.5) setHeadingPx(next);
+    // Intentionally keyed to content/layout changes only — not headingPx — so
+    // the fit runs once per content change and cannot feed back on itself.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [compact, settings.companyName]);
+
   // ---- Single-A4 auto-compaction: measure once, settle, never churn --------
   // The previous implementation looped: `compact` was in its own dependency
   // array, and a measurement reporting "fits" reset the scale back to 100%,
@@ -259,7 +313,7 @@ export const ReceiptPage = forwardRef<
       memo.ownerName, memo.driverName, memo.fromLocation, memo.toLocation,
       memo.consignor, memo.consigneeName,
       memo.description, memo.ratePerTon, memo.weightTons, memo.netFreight,
-      memo.totalHire, memo.advance, memo.balance, memo.paidAt, memo.transportName,
+      memo.totalHire, memo.advance, memo.balance, memo.paidAt,
       memo.commission, memo.loadingCharges, memo.tds, memo.localDriverGuide,
       memo.goodsMamuli, memo.totalExpenses, memo.finalPayable,
       memo.finalPaymentDate, memo.paidBy, memo.paymentMethod,
@@ -415,12 +469,24 @@ export const ReceiptPage = forwardRef<
         </div>
         <div className="flex min-w-0 flex-1 flex-col items-center justify-center px-3 py-[6px] text-center">
           {/* Company name: SRL red with a Castellar-style display serif (fallback
-              stack for machines without Castellar). Everything else uses the
-              document body sans font. The text stroke thickens the lettering so
-              the heading stays strongly bold at print scale; min-w-0 +
-              overflow-wrap stop a long configured name from pushing into the
-              contact column. */}
-          <div style={{ fontSize: `${fs(34)}px`, fontWeight: 900, color: RED, WebkitTextStroke: "0.6px", lineHeight: 1.05, letterSpacing: "0.2px", fontFamily: CASTELLAR, maxWidth: "100%", overflowWrap: "anywhere", wordBreak: "break-word" }}>
+              stack for machines without Castellar). Auto-fitted above to span
+              the full centre column, drawn weight 900, letter-spaced and
+              stroked for a strong printed masthead. `nowrap` is safe because
+              the layout effect sizes it to the column. */}
+          <div
+            ref={headingRef}
+            style={{
+              fontSize: `${headingPx ?? fs(34)}px`,
+              fontWeight: 900,
+              color: RED,
+              WebkitTextStroke: "0.75px",
+              lineHeight: 1.05,
+              letterSpacing: "0.08em",
+              fontFamily: CASTELLAR,
+              maxWidth: "100%",
+              whiteSpace: "nowrap",
+            }}
+          >
             {settings.companyName || "SAHIL ROAD LINES"}
           </div>
           <div style={{ fontSize: `${fs(14)}px`, fontWeight: 800, color: NAVY, letterSpacing: "0.7px", marginTop: `${s(1)}px`, maxWidth: "100%", overflowWrap: "anywhere" }}>
@@ -481,7 +547,7 @@ export const ReceiptPage = forwardRef<
         {detailRow("Lorry Owner Name:", formatDisplayText(memo.ownerName) || "—")}
         {detailRow("Driver Name:", formatDisplayText(memo.driverName) || "—")}
         {detailRow("Consignor:", consignorName)}
-        {detailRow("Consignee:", formatDisplayText(consigneeName) || "—")}
+        {detailRow("Consignee:", consigneeName)}
         {detailRow("Description:", formatDisplayText(memo.description) || "—")}
         {/* Per Ton Rs. | value | Weight | value — side-by-side on one row */}
         <div className="flex" style={{ borderBottom: `0px solid ${NAVY}` }}>
@@ -535,17 +601,12 @@ export const ReceiptPage = forwardRef<
             </div>
           </div>
 
-          {/* CENTER: Vehicle (two vertically-centered halves: Truck + Transport) */}
+          {/* CENTER: Vehicle — Truck No. only (Transport entry removed) */}
           <div style={{ borderRight: `2px solid ${NAVY}`, display: "flex", flexDirection: "column", minWidth: 0 }}>
             <div style={cellHeading}>Vehicle</div>
             <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: `${s(6)}px`, minHeight: 0 }}>
               <div style={{ fontSize: `${fs(14)}px`, fontWeight: 800, color: "#3A4356" }}>Truck No.:</div>
               <div style={{ fontSize: `${fs(22)}px`, fontWeight: 900, color: NAVY, lineHeight: 1.1, textAlign: "center", overflowWrap: "anywhere", wordBreak: "break-word" }}>{truckNo}</div>
-            </div>
-            <div style={{ borderTop: `1px solid ${NAVY}` }} />
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: `${s(6)}px`, minHeight: 0 }}>
-              <div style={{ fontSize: `${fs(14)}px`, fontWeight: 800, color: "#3A4356" }}>Transport:</div>
-              <div style={{ fontSize: `${fs(20)}px`, fontWeight: 900, color: NAVY, lineHeight: 1.1, textAlign: "center", overflowWrap: "anywhere", wordBreak: "break-word" }}>{formatDisplayText(memo.transportName) || "—"}</div>
             </div>
           </div>
 
@@ -610,9 +671,13 @@ export const ReceiptPage = forwardRef<
       {terms.length > 0 && (
         <div className="avoid-break" style={{ borderBottom: `1px solid ${NAVY}`, padding: `${s(4)}px 14px` }}>
           <div style={{ fontSize: `${fs(11)}px`, fontWeight: 900, color: NAVY, marginBottom: `${s(1)}px`, letterSpacing: "0.5px", textTransform: "uppercase" as const }}>Terms &amp; Conditions</div>
-          <ol className="list-decimal pl-5" style={{ fontSize: `${fs(10)}px`, lineHeight: 1.25, color: "#333" }}>
-            {terms.map((t, i) => <li key={i} className="mb-0" style={{ marginBottom: 0 }}>{t}</li>)}
-          </ol>
+          <div className="flex" style={{ gap: `${s(10)}px`, alignItems: "flex-start" }}>
+            {termColumns.map((col, ci) => (
+              <ol key={ci} start={ci * 5 + 1} className="list-decimal pl-5" style={{ flex: 1, minWidth: 0, margin: 0, fontSize: `${fs(10)}px`, lineHeight: 1.25, color: "#333" }}>
+                {col.map((t, i) => <li key={i} style={{ marginBottom: 0 }}>{t}</li>)}
+              </ol>
+            ))}
+          </div>
         </div>
       )}
 

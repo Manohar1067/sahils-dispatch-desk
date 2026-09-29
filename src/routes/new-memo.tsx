@@ -242,7 +242,7 @@ function NewMemo() {
       return;
     }
     if (!form.truckNumber) return toast.error("Truck is required");
-    if (!form.consigneeName) return toast.error("Consignee is required");
+    if (!form.consigneeName) return toast.error("Consignor is required");
     if (!form.materialName) return toast.error("Material is required");
     if (!form.weightTons) return toast.error("Weight is required");
     if (!form.ratePerTon) return toast.error("Rate/Ton is required");
@@ -325,20 +325,20 @@ function NewMemo() {
           <Field label="From"><Input className="h-11" value={form.fromLocation} onChange={(e) => set("fromLocation", e.target.value)} /></Field>
           <Field label="To"><Input className="h-11" value={form.toLocation} onChange={(e) => set("toLocation", e.target.value)} /></Field>
           <Field label="G.C. No."><Input className="h-11" value={form.gcNo || ""} onChange={(e) => set("gcNo", e.target.value)} /></Field>
-          <Field label="Consignor">
+          <Field label="Consignee">
             <Input
               className="h-11"
               value={form.consignor || ""}
-              placeholder="Party consigning the goods"
+              placeholder="Source / originating party consigning the goods"
               onChange={(e) => set("consignor", e.target.value)}
             />
           </Field>
-          <Field label="Consignee" required>
+          <Field label="Consignor" required>
             <Combobox
               options={(consignees ?? []).map((c) => ({ value: c.companyName, label: c.companyName, keywords: `${c.city} ${c.contactPerson}` }))}
               value={form.consigneeName}
               onChange={(v) => set("consigneeName", v)}
-              placeholder="Search or type consignee…"
+              placeholder="Search or type consignor…"
               allowCustom
               createLabel="Use"
             />
@@ -364,7 +364,6 @@ function NewMemo() {
           <Field label="Driver Name"><Input className="h-11" value={form.driverName} onChange={(e) => set("driverName", e.target.value)} /></Field>
           <Field label="Owner Name"><Input className="h-11" value={form.ownerName} onChange={(e) => set("ownerName", e.target.value)} /></Field>
           <Field label="Owner Phone"><Input className="h-11" value={form.ownerPhone} onChange={(e) => set("ownerPhone", e.target.value)} /></Field>
-          <Field label="Transport Name"><Input className="h-11" value={form.transportName} onChange={(e) => set("transportName", e.target.value)} /></Field>
         </Section>
 
         <Section title="Goods Information">
