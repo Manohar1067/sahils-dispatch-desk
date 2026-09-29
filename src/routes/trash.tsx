@@ -16,7 +16,7 @@ import {
 
 export const Route = createFileRoute("/trash")({ component: TrashPage });
 
-const KINDS = ["All", "Memo", "Transport", "Truck", "Consignee"] as const;
+const KINDS = ["All", "Memo", "Transport", "Truck", "Consignor"] as const;
 
 function TrashPage() {
   const { profile } = useAuth();

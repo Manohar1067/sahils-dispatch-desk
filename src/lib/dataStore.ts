@@ -527,7 +527,7 @@ export async function createConsignee(input: Omit<Consignee, "id">): Promise<Con
     .select()
     .single();
   if (error) {
-    if (error.code === "23505") throw new Error("Consignee company name already exists");
+    if (error.code === "23505") throw new Error("Consignor company name already exists");
     throw error;
   }
   return rowToConsignee(data);
@@ -540,7 +540,7 @@ export async function updateConsignee(id: string, patch: Partial<Consignee>): Pr
     .select()
     .single();
   if (error) {
-    if (error.code === "23505") throw new Error("Consignee company name already exists");
+    if (error.code === "23505") throw new Error("Consignor company name already exists");
     throw error;
   }
   return rowToConsignee(data);
@@ -567,7 +567,7 @@ export async function permanentlyDeleteConsignee(id: string): Promise<void> {
 // -------------------------- UNIFIED TRASH (memos + trucks + consignees) -----
 
 export interface TrashItem {
-  kind: "Memo" | "Truck" | "Consignee" | "Transport";
+  kind: "Memo" | "Truck" | "Consignor" | "Transport";
   id: string;
   label: string;       // display text â€” memo number / truck number / company name
   deletedAt?: string;
@@ -587,7 +587,7 @@ export async function getAllTrashItems(): Promise<TrashItem[]> {
     deletedAt: r.deleted_at,
   }));
   const consigneeItems: TrashItem[] = (consignees.data ?? []).map((r: any) => ({
-    kind: "Consignee",
+    kind: "Consignor",
     id: r.id,
     label: r.company_name,
     deletedAt: r.deleted_at,
@@ -612,14 +612,14 @@ export async function getAllTrashItems(): Promise<TrashItem[]> {
 export async function restoreTrashItem(item: TrashItem): Promise<void> {
   if (item.kind === "Memo") return restoreMemo(item.id);
   if (item.kind === "Truck") return restoreTruck(item.id);
-  if (item.kind === "Consignee") return restoreConsignee(item.id);
+  if (item.kind === "Consignor") return restoreConsignee(item.id);
   if (item.kind === "Transport") return restoreTransportEntry(item.id);
 }
 
 export async function permanentlyDeleteTrashItem(item: TrashItem): Promise<void> {
   if (item.kind === "Memo") return permanentlyDeleteMemo(item.id);
   if (item.kind === "Truck") return permanentlyDeleteTruck(item.id);
-  if (item.kind === "Consignee") return permanentlyDeleteConsignee(item.id);
+  if (item.kind === "Consignor") return permanentlyDeleteConsignee(item.id);
   if (item.kind === "Transport") return permanentlyDeleteTransportEntry(item.id);
 }
 

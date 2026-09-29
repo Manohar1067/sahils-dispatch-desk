@@ -233,12 +233,12 @@ function TransportEditPage() {
               createLabel="Use"
             />
           </Field>
-          <Field label="Consignee">
+          <Field label="Consignor">
             <Combobox
               options={(consignees ?? []).map((c) => ({ value: c.companyName, label: c.companyName, keywords: `${c.city} ${c.contactPerson}` }))}
               value={form.consigneeName}
               onChange={(v) => set("consigneeName", v)}
-              placeholder="Search or type consignee…"
+              placeholder="Search or type consignor…"
               allowCustom
               createLabel="Use"
             />

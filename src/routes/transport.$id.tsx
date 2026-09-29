@@ -81,7 +81,7 @@ function TransportEntryView() {
           <Row label="From" value={formatDisplayText(entry.fromLocation) || "—"} />
           <Row label="To" value={formatDisplayText(entry.toLocation) || "—"} />
           <Row label="Transport Name" value={formatDisplayText(entry.transportName) || "—"} />
-          <Row label="Consignee" value={formatDisplayText(entry.consigneeName) || "—"} />
+          <Row label="Consignor" value={formatDisplayText(entry.consigneeName) || "—"} />
         </Section>
 
         <Section title="Vehicle Information">

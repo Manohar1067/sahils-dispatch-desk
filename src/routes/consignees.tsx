@@ -44,8 +44,8 @@ function Page() {
     try {
       if (!form.companyName) return toast.error("Company name required");
       setBusy(true);
-      if (editId) { await updateConsignee(editId, form); toast.success("Consignee updated"); }
-      else { await createConsignee(form); toast.success("Consignee added"); }
+      if (editId) { await updateConsignee(editId, form); toast.success("Consignor updated"); }
+      else { await createConsignee(form); toast.success("Consignor added"); }
       setOpen(false);
     } catch (e) { toast.error((e as Error).message); }
     finally { setBusy(false); }
@@ -58,7 +58,7 @@ function Page() {
     try {
       await deleteConsignee(pendingDelete.id);
       setPendingDelete(null);
-      toast.success(`Consignee ${n} deleted`);
+      toast.success(`Consignor ${n} deleted`);
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -67,11 +67,11 @@ function Page() {
   };
 
   return (
-    <AppShell title="Consignee Management" breadcrumb="Home / Consignee Management" actions={admin ? <Button onClick={openNew}><Plus className="mr-1 h-4 w-4" />Add Consignee</Button> : undefined}>
+    <AppShell title="Consignor Management" breadcrumb="Home / Consignor Management" actions={admin ? <Button onClick={openNew}><Plus className="mr-1 h-4 w-4" />Add Consignor</Button> : undefined}>
       <div className="card-surface p-5">
         <div className="relative mb-4 max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search consignees…" className="h-11 pl-9" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search consignors…" className="h-11 pl-9" />
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[900px] text-left">
@@ -83,7 +83,7 @@ function Page() {
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0 && (<tr><td colSpan={admin ? 7 : 6} className="py-16 text-center text-muted-foreground">No records found</td></tr>)}
+              {filtered.length === 0 && (<tr><td colSpan={admin ? 7 : 6} className="py-16 text-center text-muted-foreground">No consignors found</td></tr>)}
               {filtered.map((c) => (
                 <tr key={c.id} className="border-b hover:bg-muted/30">
                   <td className="px-3 py-3 font-semibold">{c.companyName}</td>
@@ -111,7 +111,7 @@ function Page() {
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-2xl">
-          <DialogHeader><DialogTitle>{editId ? "Edit Consignee" : "Add Consignee"}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editId ? "Edit Consignor" : "Add Consignor"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2"><Label>Company Name *</Label><Input className="h-11 mt-1.5" value={form.companyName} onChange={(e) => setForm((f) => ({ ...f, companyName: e.target.value }))} /></div>
             <div><Label>Contact Person</Label><Input className="h-11 mt-1.5" value={form.contactPerson} onChange={(e) => setForm((f) => ({ ...f, contactPerson: e.target.value }))} /></div>
@@ -128,7 +128,7 @@ function Page() {
       <AlertDialog open={!!pendingDelete} onOpenChange={(o) => !o && setPendingDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete consignee {pendingDelete?.companyName}?</AlertDialogTitle>
+            <AlertDialogTitle>Delete consignor {pendingDelete?.companyName}?</AlertDialogTitle>
             <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

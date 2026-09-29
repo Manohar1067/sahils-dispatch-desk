@@ -121,7 +121,7 @@ function TransportListPage() {
     (consignees ?? []).forEach((c) => { if (c.companyName) names.add(c.companyName); });
     (entries ?? []).forEach((e) => names.add(e.consigneeName || "—"));
     return [
-      { value: "all", label: "All consignees" },
+      { value: "all", label: "All consignors" },
       ...Array.from(names).sort().map((n) => ({ value: n, label: n })),
     ];
   }, [consignees, entries]);
@@ -218,7 +218,7 @@ function TransportListPage() {
     { key: "entryNumber", label: "Memo Number", render: (r) => <Link to="/transport/$id" params={{ id: r.id }} className="font-semibold text-blue-600 hover:underline">{r.entryNumber}</Link> },
     { key: "dispatch", label: "Dispatch Date", render: (r) => <span className="whitespace-nowrap">{formatDate(r.dispatchDate)}</span> },
     { key: "truck", label: "Truck", render: (r) => <span className="font-semibold whitespace-nowrap">{normalizeTruckNumber(r.truckNumber) || "—"}</span> },
-    { key: "consignee", label: "Consignee", render: (r) => <span className="font-semibold text-navy">{formatDisplayText(r.consigneeName) || "—"}</span> },
+    { key: "consignee", label: "Consignor", render: (r) => <span className="font-semibold text-navy">{formatDisplayText(r.consigneeName) || "—"}</span> },
     { key: "destination", label: "Destination", render: (r) => <span className="font-semibold">{formatDisplayText(r.toLocation)}</span> },
     { key: "rate", label: "Rate/Ton (Transport)", align: "right", render: (r) => formatMoney(r.ratePerTon) },
     { key: "weight", label: "Weight", align: "right", render: (r) => r.weightTons },
@@ -274,7 +274,7 @@ function TransportListPage() {
           <Input
             value={query}
             onChange={(e) => { setQuery(e.target.value); setPage(1); }}
-            placeholder="Search memo number / truck / driver / transport / consignee / destination / material / status / remarks…"
+            placeholder="Search memo number / truck / driver / transport / consignor / destination / material / status / remarks…"
             className="h-12 pl-10 text-base"
           />
         </div>
@@ -308,12 +308,12 @@ function TransportListPage() {
             </Select>
           </div>
           <div>
-            <label className="section-title mb-1 block">Consignee</label>
+            <label className="section-title mb-1 block">Consignor</label>
             <Combobox
               options={consigneeOptions}
               value={consignee}
               onChange={(v) => { setConsignee(v); setPage(1); }}
-              placeholder="All consignees"
+              placeholder="All consignors"
               className="w-[200px]"
             />
           </div>

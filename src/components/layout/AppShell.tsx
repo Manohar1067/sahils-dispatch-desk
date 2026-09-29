@@ -34,7 +34,7 @@ const allNav = [
   { to: "/register", label: "Register List", icon: List },
   { to: "/transport-list", label: "Transport List", icon: ClipboardList },
   { to: "/fleet", label: "Fleet Management", icon: Truck },
-  { to: "/consignees", label: "Consignee Management", icon: Building2 },
+  { to: "/consignees", label: "Consignor Management", icon: Building2 },
   { to: "/reports", label: "Reports", icon: BarChart3 },
   { to: "/audit", label: "Audit Log", icon: ScrollText },
   { to: "/trash", label: "Trash", icon: Trash2 },

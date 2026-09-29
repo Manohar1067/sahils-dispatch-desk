@@ -15,7 +15,7 @@ export const Route = createFileRoute("/audit")({ component: AuditPage });
 // Readable labels used in the diff modal
 const FIELD_LABELS: Record<string, string> = {
   memoNumber: "Memo #", dispatchDate: "Dispatch Date", fromLocation: "From",
-  toLocation: "Destination", transportName: "Transport", consigneeId: "Consignee",
+  toLocation: "Destination", transportName: "Transport", consigneeId: "Consignor",
   truckId: "Truck", driverName: "Driver", ownerName: "Owner", ownerPhone: "Owner Phone",
   materialName: "Material", weightTons: "Weight (tons)", ratePerTon: "Rate / Ton",
   netFreight: "Net Freight", advance: "Advance", balance: "Balance", commission: "Commission",

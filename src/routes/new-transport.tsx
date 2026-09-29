@@ -151,7 +151,7 @@ function NewTransportEntry() {
       return;
     }
     if (!form.truckNumber) return toast.error("Truck is required");
-    if (!form.consigneeName) return toast.error("Consignee is required");
+    if (!form.consigneeName) return toast.error("Consignor is required");
     if (!form.materialName) return toast.error("Material is required");
     if (!form.weightTons) return toast.error("Weight is required");
     if (!form.ratePerTon) return toast.error("Rate/Ton (Transport) is required");
@@ -226,12 +226,12 @@ function NewTransportEntry() {
               createLabel="Use"
             />
           </Field>
-          <Field label="Consignee" required>
+          <Field label="Consignor" required>
             <Combobox
               options={(consignees ?? []).map((c) => ({ value: c.companyName, label: c.companyName, keywords: `${c.city} ${c.contactPerson}` }))}
               value={form.consigneeName}
               onChange={(v) => set("consigneeName", v)}
-              placeholder="Search or type consignee…"
+              placeholder="Search or type consignor…"
               allowCustom
               createLabel="Use"
             />

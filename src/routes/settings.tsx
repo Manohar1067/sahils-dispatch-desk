@@ -386,7 +386,7 @@ function SettingsPage() {
               <ul className="mt-2 list-inside list-disc space-y-1">
                 <li>Register List / memo data</li>
                 <li>Transport List data</li>
-                <li>Consignee Management</li>
+                <li>Consignor Management</li>
                 <li>Fleet Management</li>
               </ul>
               <p className="mt-2">

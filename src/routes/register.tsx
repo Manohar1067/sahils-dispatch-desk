@@ -304,7 +304,7 @@ function RegisterPage() {
           <Input
             value={query}
             onChange={(e) => { setQuery(e.target.value); setPage(1); }}
-            placeholder="Search memo # / truck / driver / consignee / destination / material / status / remarks…"
+            placeholder="Search memo # / truck / driver / consignor / destination / material / status / remarks…"
             className="h-12 pl-10 text-base"
           />
         </div>
@@ -352,15 +352,15 @@ function RegisterPage() {
             />
           </div>
           <div>
-            <label className="section-title mb-1 block">Consignee</label>
+            <label className="section-title mb-1 block">Consignor</label>
             <Combobox
               options={[
-                { value: "all", label: "All consignees" },
+                { value: "all", label: "All consignors" },
                 ...(consignees ?? []).map((c) => ({ value: c.id, label: c.companyName, keywords: `${c.city} ${c.contactPerson} ${c.phone}` })),
               ]}
               value={consigneeId}
               onChange={(v) => { setConsigneeId(v); setPage(1); }}
-              placeholder="All consignees"
+              placeholder="All consignors"
               className="w-[200px]"
             />
           </div>
@@ -409,7 +409,7 @@ function RegisterPage() {
             { key: "memoNumber", label: "Memo #", render: (r) => <span className="inline-flex items-center"><Link to="/memo/$id" params={{ id: r.id }} className="font-semibold text-blue-600 hover:underline">{r.memoNumber}</Link>{r.isDraft && <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">Draft</span>}</span> },
             { key: "dispatch", label: "Dispatch Date", render: (r) => <span className="whitespace-nowrap font-semibold text-blue-700">{formatDate(r.dispatchDate)}</span> },
             { key: "truck", label: "Truck", render: (r) => <span className="font-bold whitespace-nowrap text-navy underline decoration-navy/30 underline-offset-2">{truckLabel(r)}</span> },
-            { key: "consignee", label: "Consignee", render: (r) => <span className="font-semibold text-navy">{formatDisplayText(consigneeLabel(r))}</span> },
+            { key: "consignee", label: "Consignor", render: (r) => <span className="font-semibold text-navy">{formatDisplayText(consigneeLabel(r))}</span> },
             { key: "destination", label: "Destination", render: (r) => <span className="font-bold text-navy">{formatDisplayText(r.toLocation)}</span> },
             { key: "rate", label: "Rate/Ton", align: "right", render: (r) => formatMoney(r.ratePerTon) },
             { key: "weight", label: "Weight", align: "right", render: (r) => r.weightTons },

@@ -104,7 +104,7 @@ function Dashboard() {
         <KpiCard label="Collection Due" value={formatMoney(collectionDue)} icon={Wallet} tone="orange" onClick={() => go("collection_due")} />
         <KpiCard label="Monthly Revenue" value={formatMoney(monthlyRevenue)} icon={Calendar} tone="indigo" onClick={() => goReport("month")} />
         <KpiCard label="Total Trucks" value={String(trucks?.length ?? 0)} icon={Truck} tone="purple" onClick={() => nav({ to: "/fleet" })} />
-        <KpiCard label="Total Consignees" value={String(consignees?.length ?? 0)} icon={Building2} tone="purple" onClick={() => nav({ to: "/consignees" })} />
+        <KpiCard label="Total Consignors" value={String(consignees?.length ?? 0)} icon={Building2} tone="purple" onClick={() => nav({ to: "/consignees" })} />
 
         <KpiCard label="Top Truck This Month" value={normalizeTruckNumber(topTruck?.truckNumber) || "—"} sub={topTruck ? `${truckCounts[topTruck.id]} trips · ${formatMoney(truckAmt[topTruck.id])}` : "No data"} icon={Award} tone="indigo" onClick={() => goReport("month")} />
         <KpiCard label="Top Driver This Month" value={topDriver ?? "—"} sub={topDriver ? `${driverCounts[topDriver]} trips` : "No data"} icon={User} tone="indigo" onClick={() => goReport("month")} />
