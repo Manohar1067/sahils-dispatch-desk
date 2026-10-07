@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/layout/AppShell";
 import { useStoreData } from "@/lib/useStore";
 import { getMemos, getTrucks, type Memo, type FleetTruck } from "@/lib/dataStore";
+import { hasOutstandingBalance } from "@/lib/completionRules";
 import { formatMoney, formatDate, normalizeTruckNumber, compareMemoNumberDesc } from "@/lib/format";
 import { formatDisplayText } from "@/lib/textUtils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -75,7 +76,7 @@ function ReportsPage() {
    *  Filter first, then sort Memo Number STRICT DESCENDING (numeric suffix). */
   const visibleTrips = useMemo(() => {
     let rows = filtered;
-    if (type === "pending") rows = rows.filter((x) => x.status === "Payment Pending");
+    if (type === "pending") rows = rows.filter(hasOutstandingBalance);
     if (type === "lr") rows = rows.filter((x) => !x.lrSubmittedDate);
     return [...rows].sort((a, b) => compareMemoNumberDesc(a.memoNumber, b.memoNumber));
   }, [filtered, type]);
@@ -83,11 +84,11 @@ function ReportsPage() {
   const revenue = filtered.reduce((s, x) => s + x.netFreight, 0);
   const expense = filtered.reduce((s, x) => s + x.totalExpenses, 0);
   const profit = revenue - expense;
-  const pendingPay = filtered.filter((x) => x.status === "Payment Pending").reduce((s, x) => s + x.balance, 0);
+  const pendingPay = filtered.filter(hasOutstandingBalance).reduce((s, x) => s + x.balance, 0);
   const lrPendingCount = filtered.filter((x) => !x.lrSubmittedDate).length;
   const completed = filtered.filter((x) => x.status === "Completed").length;
   const running = filtered.filter((x) => x.status === "Dispatched").length;
-  const pendingPayCount = filtered.filter((x) => x.status === "Payment Pending").length;
+  const pendingPayCount = filtered.filter(hasOutstandingBalance).length;
 
   const truckStats: Array<{ id: string; number: string; trips: number; revenue: number }> = [];
   const groupTruck: Record<string, { trips: number; revenue: number }> = {};

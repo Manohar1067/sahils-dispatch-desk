@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppShell } from "@/components/layout/AppShell";
 import { useStoreData } from "@/lib/useStore";
 import { getMemos, getTrucks, getConsignees, type Memo, type FleetTruck, type Consignee } from "@/lib/dataStore";
+import { hasOutstandingBalance } from "@/lib/completionRules";
 import { formatMoney, normalizeTruckNumber } from "@/lib/format";
 import {
   TrendingUp, TrendingDown, Truck, Building2, Clock, CheckCircle2,
@@ -69,9 +70,9 @@ function Dashboard() {
   const running = m.filter((x) => x.status === "Dispatched").length;
   const completed = m.filter((x) => x.status === "Completed").length;
   const pendingDeliveries = m.filter((x) => x.status === "Dispatched").length;
-  const pendingPayment = m.filter((x) => x.status === "Payment Pending");
+  const pendingPayment = m.filter(hasOutstandingBalance);
   const pendingPaymentAmount = pendingPayment.reduce((s, x) => s + (x.balance || 0), 0);
-  const collectionDue = m.filter((x) => x.status !== "Completed").reduce((s, x) => s + (x.balance || 0), 0);
+  const collectionDue = m.filter(hasOutstandingBalance).reduce((s, x) => s + (x.balance || 0), 0);
 
   const truckCounts: Record<string, number> = {};
   const truckAmt: Record<string, number> = {};

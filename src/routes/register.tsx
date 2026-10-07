@@ -6,6 +6,7 @@ import {
   ALL_MEMO_STATUSES, type Memo, type FleetTruck, type Consignee, type MemoStatus,
 } from "@/lib/dataStore";
 import { formatDate, formatMoney, toDateKey, normalizeTruckNumber, effectiveWorkflowStatus, qualifiesForStatus, compareMemoNumberDesc } from "@/lib/format";
+import { hasOutstandingBalance } from "@/lib/completionRules";
 import { formatDisplayText } from "@/lib/textUtils";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useEffect, useMemo, useState } from "react";
@@ -126,7 +127,7 @@ function RegisterPage() {
     else if (scope === "running") rows = rows.filter((x) => x.status === "Dispatched");
     else if (scope === "completed") rows = rows.filter((x) => x.status === "Completed");
     else if (scope === "pending") rows = rows.filter((x) => x.status === "Dispatched");
-    else if (scope === "payment_pending") rows = rows.filter((x) => x.status === "Payment Pending");
+    else if (scope === "payment_pending") rows = rows.filter(hasOutstandingBalance);
     else if (scope === "collection_due") rows = rows.filter((x) => x.status !== "Completed" && x.balance > 0);
 
     if (status !== "all") rows = rows.filter((r) => qualifiesForStatus(r, status));

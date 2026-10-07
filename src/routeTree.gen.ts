@@ -9,89 +9,29 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as UserManagementRouteImport } from './routes/user-management'
-import { Route as TrashRouteImport } from './routes/trash'
-import { Route as TransportListRouteImport } from './routes/transport-list'
-import { Route as TestReceiptRouteImport } from './routes/test-receipt'
-import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as ResetPinRouteImport } from './routes/reset-pin'
-import { Route as ReportsRouteImport } from './routes/reports'
-import { Route as RegisterRouteImport } from './routes/register'
-import { Route as NewTransportRouteImport } from './routes/new-transport'
-import { Route as NewMemoRouteImport } from './routes/new-memo'
-import { Route as ForgotPinRouteImport } from './routes/forgot-pin'
-import { Route as FleetRouteImport } from './routes/fleet'
-import { Route as ConsigneesRouteImport } from './routes/consignees'
-import { Route as AuditRouteImport } from './routes/audit'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as TransportIdRouteImport } from './routes/transport.$id'
-import { Route as TransportEditIdRouteImport } from './routes/transport-edit.$id'
-import { Route as MemoIdRouteImport } from './routes/memo.$id'
+import { Route as AuditRouteImport } from './routes/audit'
+import { Route as ConsigneesRouteImport } from './routes/consignees'
+import { Route as FleetRouteImport } from './routes/fleet'
+import { Route as ForgotPinRouteImport } from './routes/forgot-pin'
+import { Route as NewMemoRouteImport } from './routes/new-memo'
+import { Route as NewTransportRouteImport } from './routes/new-transport'
+import { Route as RegisterRouteImport } from './routes/register'
+import { Route as ReportsRouteImport } from './routes/reports'
+import { Route as ResetPinRouteImport } from './routes/reset-pin'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as TestReceiptRouteImport } from './routes/test-receipt'
+import { Route as TransportListRouteImport } from './routes/transport-list'
+import { Route as TrashRouteImport } from './routes/trash'
+import { Route as UserManagementRouteImport } from './routes/user-management'
 import { Route as ApiKeepaliveRouteImport } from './routes/api/keepalive'
+import { Route as MemoIdRouteImport } from './routes/memo.$id'
+import { Route as TransportEditIdRouteImport } from './routes/transport-edit.$id'
+import { Route as TransportIdRouteImport } from './routes/transport.$id'
 
-const UserManagementRoute = UserManagementRouteImport.update({
-  id: '/user-management',
-  path: '/user-management',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TrashRoute = TrashRouteImport.update({
-  id: '/trash',
-  path: '/trash',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TransportListRoute = TransportListRouteImport.update({
-  id: '/transport-list',
-  path: '/transport-list',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TestReceiptRoute = TestReceiptRouteImport.update({
-  id: '/test-receipt',
-  path: '/test-receipt',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ResetPinRoute = ResetPinRouteImport.update({
-  id: '/reset-pin',
-  path: '/reset-pin',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ReportsRoute = ReportsRouteImport.update({
-  id: '/reports',
-  path: '/reports',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RegisterRoute = RegisterRouteImport.update({
-  id: '/register',
-  path: '/register',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const NewTransportRoute = NewTransportRouteImport.update({
-  id: '/new-transport',
-  path: '/new-transport',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const NewMemoRoute = NewMemoRouteImport.update({
-  id: '/new-memo',
-  path: '/new-memo',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ForgotPinRoute = ForgotPinRouteImport.update({
-  id: '/forgot-pin',
-  path: '/forgot-pin',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FleetRoute = FleetRouteImport.update({
-  id: '/fleet',
-  path: '/fleet',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ConsigneesRoute = ConsigneesRouteImport.update({
-  id: '/consignees',
-  path: '/consignees',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuditRoute = AuditRouteImport.update({
@@ -99,19 +39,74 @@ const AuditRoute = AuditRouteImport.update({
   path: '/audit',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const ConsigneesRoute = ConsigneesRouteImport.update({
+  id: '/consignees',
+  path: '/consignees',
   getParentRoute: () => rootRouteImport,
 } as any)
-const TransportIdRoute = TransportIdRouteImport.update({
-  id: '/transport/$id',
-  path: '/transport/$id',
+const FleetRoute = FleetRouteImport.update({
+  id: '/fleet',
+  path: '/fleet',
   getParentRoute: () => rootRouteImport,
 } as any)
-const TransportEditIdRoute = TransportEditIdRouteImport.update({
-  id: '/transport-edit/$id',
-  path: '/transport-edit/$id',
+const ForgotPinRoute = ForgotPinRouteImport.update({
+  id: '/forgot-pin',
+  path: '/forgot-pin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NewMemoRoute = NewMemoRouteImport.update({
+  id: '/new-memo',
+  path: '/new-memo',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NewTransportRoute = NewTransportRouteImport.update({
+  id: '/new-transport',
+  path: '/new-transport',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RegisterRoute = RegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReportsRoute = ReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPinRoute = ResetPinRouteImport.update({
+  id: '/reset-pin',
+  path: '/reset-pin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TestReceiptRoute = TestReceiptRouteImport.update({
+  id: '/test-receipt',
+  path: '/test-receipt',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TransportListRoute = TransportListRouteImport.update({
+  id: '/transport-list',
+  path: '/transport-list',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TrashRoute = TrashRouteImport.update({
+  id: '/trash',
+  path: '/trash',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UserManagementRoute = UserManagementRouteImport.update({
+  id: '/user-management',
+  path: '/user-management',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiKeepaliveRoute = ApiKeepaliveRouteImport.update({
+  id: '/api/keepalive',
+  path: '/api/keepalive',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MemoIdRoute = MemoIdRouteImport.update({
@@ -119,9 +114,14 @@ const MemoIdRoute = MemoIdRouteImport.update({
   path: '/memo/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiKeepaliveRoute = ApiKeepaliveRouteImport.update({
-  id: '/api/keepalive',
-  path: '/api/keepalive',
+const TransportEditIdRoute = TransportEditIdRouteImport.update({
+  id: '/transport-edit/$id',
+  path: '/transport-edit/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TransportIdRoute = TransportIdRouteImport.update({
+  id: '/transport/$id',
+  path: '/transport/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -279,95 +279,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/user-management': {
-      id: '/user-management'
-      path: '/user-management'
-      fullPath: '/user-management'
-      preLoaderRoute: typeof UserManagementRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/trash': {
-      id: '/trash'
-      path: '/trash'
-      fullPath: '/trash'
-      preLoaderRoute: typeof TrashRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/transport-list': {
-      id: '/transport-list'
-      path: '/transport-list'
-      fullPath: '/transport-list'
-      preLoaderRoute: typeof TransportListRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/test-receipt': {
-      id: '/test-receipt'
-      path: '/test-receipt'
-      fullPath: '/test-receipt'
-      preLoaderRoute: typeof TestReceiptRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/reset-pin': {
-      id: '/reset-pin'
-      path: '/reset-pin'
-      fullPath: '/reset-pin'
-      preLoaderRoute: typeof ResetPinRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/reports': {
-      id: '/reports'
-      path: '/reports'
-      fullPath: '/reports'
-      preLoaderRoute: typeof ReportsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/register': {
-      id: '/register'
-      path: '/register'
-      fullPath: '/register'
-      preLoaderRoute: typeof RegisterRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/new-transport': {
-      id: '/new-transport'
-      path: '/new-transport'
-      fullPath: '/new-transport'
-      preLoaderRoute: typeof NewTransportRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/new-memo': {
-      id: '/new-memo'
-      path: '/new-memo'
-      fullPath: '/new-memo'
-      preLoaderRoute: typeof NewMemoRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/forgot-pin': {
-      id: '/forgot-pin'
-      path: '/forgot-pin'
-      fullPath: '/forgot-pin'
-      preLoaderRoute: typeof ForgotPinRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/fleet': {
-      id: '/fleet'
-      path: '/fleet'
-      fullPath: '/fleet'
-      preLoaderRoute: typeof FleetRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/consignees': {
-      id: '/consignees'
-      path: '/consignees'
-      fullPath: '/consignees'
-      preLoaderRoute: typeof ConsigneesRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/audit': {
@@ -377,25 +293,102 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuditRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/consignees': {
+      id: '/consignees'
+      path: '/consignees'
+      fullPath: '/consignees'
+      preLoaderRoute: typeof ConsigneesRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/transport/$id': {
-      id: '/transport/$id'
-      path: '/transport/$id'
-      fullPath: '/transport/$id'
-      preLoaderRoute: typeof TransportIdRouteImport
+    '/fleet': {
+      id: '/fleet'
+      path: '/fleet'
+      fullPath: '/fleet'
+      preLoaderRoute: typeof FleetRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/transport-edit/$id': {
-      id: '/transport-edit/$id'
-      path: '/transport-edit/$id'
-      fullPath: '/transport-edit/$id'
-      preLoaderRoute: typeof TransportEditIdRouteImport
+    '/forgot-pin': {
+      id: '/forgot-pin'
+      path: '/forgot-pin'
+      fullPath: '/forgot-pin'
+      preLoaderRoute: typeof ForgotPinRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/new-memo': {
+      id: '/new-memo'
+      path: '/new-memo'
+      fullPath: '/new-memo'
+      preLoaderRoute: typeof NewMemoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/new-transport': {
+      id: '/new-transport'
+      path: '/new-transport'
+      fullPath: '/new-transport'
+      preLoaderRoute: typeof NewTransportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/register': {
+      id: '/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reports': {
+      id: '/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof ReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-pin': {
+      id: '/reset-pin'
+      path: '/reset-pin'
+      fullPath: '/reset-pin'
+      preLoaderRoute: typeof ResetPinRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/test-receipt': {
+      id: '/test-receipt'
+      path: '/test-receipt'
+      fullPath: '/test-receipt'
+      preLoaderRoute: typeof TestReceiptRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/transport-list': {
+      id: '/transport-list'
+      path: '/transport-list'
+      fullPath: '/transport-list'
+      preLoaderRoute: typeof TransportListRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/trash': {
+      id: '/trash'
+      path: '/trash'
+      fullPath: '/trash'
+      preLoaderRoute: typeof TrashRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/user-management': {
+      id: '/user-management'
+      path: '/user-management'
+      fullPath: '/user-management'
+      preLoaderRoute: typeof UserManagementRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/keepalive': {
+      id: '/api/keepalive'
+      path: '/api/keepalive'
+      fullPath: '/api/keepalive'
+      preLoaderRoute: typeof ApiKeepaliveRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/memo/$id': {
@@ -405,11 +398,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MemoIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/keepalive': {
-      id: '/api/keepalive'
-      path: '/api/keepalive'
-      fullPath: '/api/keepalive'
-      preLoaderRoute: typeof ApiKeepaliveRouteImport
+    '/transport-edit/$id': {
+      id: '/transport-edit/$id'
+      path: '/transport-edit/$id'
+      fullPath: '/transport-edit/$id'
+      preLoaderRoute: typeof TransportEditIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/transport/$id': {
+      id: '/transport/$id'
+      path: '/transport/$id'
+      fullPath: '/transport/$id'
+      preLoaderRoute: typeof TransportIdRouteImport
       parentRoute: typeof rootRouteImport
     }
   }

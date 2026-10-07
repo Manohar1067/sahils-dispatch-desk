@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { getSettings, updateSettings, getMemos, type Settings, type Memo } from "@/lib/dataStore";
+import { hasOutstandingBalance } from "@/lib/completionRules";
 import { useStoreData } from "@/lib/useStore";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -70,7 +71,7 @@ export function AppShell({
   const { data: memos } = useStoreData<Memo[]>(() => getMemos(), []);
   const [dark, setDark] = useState(false);
 
-  const pendingPaymentMemos = (memos ?? []).filter((m) => m.status === "Payment Pending");
+  const pendingPaymentMemos = (memos ?? []).filter(hasOutstandingBalance);
   const runningMemos = (memos ?? []).filter((m) => m.status === "Dispatched");
   const pendingOutstanding = pendingPaymentMemos.reduce((s, m) => s + m.balance, 0);
   const notifCount = pendingPaymentMemos.length + runningMemos.length;
@@ -124,6 +125,9 @@ export function AppShell({
               <Link
                 key={n.to}
                 to={n.to}
+                // Settings is PIN-gated: remember where the user came from so
+                // cancelling the PIN modal can return them to that page.
+                state={n.to === "/settings" ? { backTo: pathname } : undefined}
                 className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-[15px] transition-colors duration-150 ${
                   active
                     ? "bg-[color:var(--color-navy-active)] font-semibold text-white"

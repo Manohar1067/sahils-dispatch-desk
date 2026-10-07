@@ -114,13 +114,27 @@ function NewTransportEntry() {
   useEffect(() => {
     setForm((f) => {
       const netFreight = freightOverride ? f.netFreight : Math.round((f.weightTons || 0) * (f.ratePerTon || 0));
-      const balance = netFreight - (f.advance || 0);
+      const unpaid = netFreight - (f.advance || 0);
+      const settled = f.status === "Completed" || !!f.finalPaymentDate;
+      const balance = settled ? 0 : unpaid;
       const totalExpenses =
         (f.commission || 0) + (f.loadingCharges || 0) + (f.goodsMamuli || 0) + (f.tds || 0) + (f.haltingCharge || 0);
-      const finalPayable = balance - totalExpenses;
+      const finalPayable = unpaid - totalExpenses;
       return { ...f, netFreight, balance, totalExpenses, finalPayable };
     });
-  }, [form.weightTons, form.ratePerTon, form.advance, form.commission, form.loadingCharges, form.goodsMamuli, form.tds, form.haltingCharge, freightOverride]);
+  }, [
+    form.weightTons,
+    form.ratePerTon,
+    form.advance,
+    form.commission,
+    form.loadingCharges,
+    form.goodsMamuli,
+    form.tds,
+    form.haltingCharge,
+    form.status,
+    form.finalPaymentDate,
+    freightOverride,
+  ]);
 
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {

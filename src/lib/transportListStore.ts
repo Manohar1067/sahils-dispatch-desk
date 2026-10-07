@@ -8,6 +8,7 @@
  */
 
 import { supabase } from "./supabaseClient";
+import { applyCompletionRules } from "./completionRules";
 
 export type TransportStatus =
   | "Dispatched"
@@ -237,7 +238,11 @@ export async function peekNextTransportEntryNumber(): Promise<string> {
 export async function createTransportEntry(input: TransportEntryInput): Promise<TransportEntry> {
   const { data: entryNumber, error: numErr } = await supabase.rpc("next_transport_entry_number");
   if (numErr) throw numErr;
-  const row = { ...entryToRow(input), entry_number: entryNumber, is_deleted: false };
+  const row = {
+    ...entryToRow(applyCompletionRules(input)),
+    entry_number: entryNumber,
+    is_deleted: false,
+  };
   const { data, error } = await supabase.from("transport_list").insert(row).select().single();
   if (error) throw error;
   emit();
@@ -249,7 +254,24 @@ export async function updateTransportEntry(
   patch: Partial<TransportEntryInput>,
   editedFields?: string[],
 ): Promise<TransportEntry> {
-  const row = entryToRow(patch);
+  // Merge-based enforcement of the completion rules so a partial patch can
+  // never leave this row violating Completed => balance 0 /
+  // finalPaymentDate set => Completed. Only corrective keys are added.
+  let effective: Partial<TransportEntryInput> = patch;
+  try {
+    const current = await getTransportEntry(id);
+    if (current) {
+      const merged = applyCompletionRules({ ...current, ...patch });
+      if (merged.status !== current.status || merged.balance !== current.balance) {
+        effective = { ...patch };
+        if (merged.status !== current.status) effective.status = merged.status;
+        if (merged.balance !== current.balance) effective.balance = merged.balance;
+      }
+    }
+  } catch {
+    // Best-effort: if the current row cannot be read, write the patch as-is.
+  }
+  const row = entryToRow(effective);
   if (editedFields && editedFields.length > 0) {
     let existingOverridden: Record<string, boolean> | null = null;
     try {
@@ -354,9 +376,11 @@ export async function ensureTransportEntryForMemo(memo: Record<string, any>): Pr
     status: memo.status,
     remarks: memo.remarks,
   };
-  const { error } = await supabase
-    .from("transport_list")
-    .insert({ ...entryToRow(input), entry_number: entryNumber, is_deleted: false });
+  const { error } = await supabase.from("transport_list").insert({
+    ...entryToRow(applyCompletionRules(input)),
+    entry_number: entryNumber,
+    is_deleted: false,
+  });
   if (error) {
     // Non-fatal: the DB may already create this row via trigger.
     console.warn("[transport_list] could not mirror memo", error.message);

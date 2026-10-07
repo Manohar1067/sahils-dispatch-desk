@@ -16,12 +16,41 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { useAuth, isSuperAdmin } from "@/lib/AuthContext";
+import { SettingsAccessGate } from "@/components/SettingsAccessGate";
 
 export const Route = createFileRoute("/settings")({ component: SettingsPage });
+
+/** Route component: the existing Settings page is only mounted after the
+ *  6-digit PIN has been verified. The gate also covers direct visits to
+ *  /settings, not just the sidebar link, and re-locks on refresh, navigation
+ *  away, or logout (it holds no persistent unlock state). */
+function SettingsPage() {
+  return (
+    <SettingsAccessGate
+      lockedView={
+        <AppShell title="Settings" breadcrumb="Home / Settings">
+          <div className="card-surface p-6 text-center text-muted-foreground">
+            Settings is locked. Enter your PIN to continue.
+          </div>
+        </AppShell>
+      }
+    >
+      <SettingsContent />
+    </SettingsAccessGate>
+  );
+}
 
 /** Persists the last successful backup timestamp in the browser so it survives
  * refresh and re-login without requiring a live-DB migration. */
@@ -44,7 +73,7 @@ function getLastBackup(): string | null {
   return window.localStorage.getItem(LAST_BACKUP_KEY);
 }
 
-function SettingsPage() {
+function SettingsContent() {
   const { profile } = useAuth();
   const admin = isSuperAdmin(profile);
   const { data } = useStoreData<Settings>(() => getSettings(), []);
@@ -55,22 +84,65 @@ function SettingsPage() {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [lastBackup, setLastBackup] = useState<string | null>(null);
   const [resetOpen, setResetOpen] = useState(false);
+  const [pinDialogOpen, setPinDialogOpen] = useState(false);
+  const [currentPin, setCurrentPin] = useState("");
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [changingPin, setChangingPin] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Changing your OWN password needs no admin privileges — call Supabase Auth
-  // directly instead of routing through the admin Edge Function.
-  const changePin = async () => {
-    if (!/^\d{6}$/.test(newPin)) { toast.error("PIN must be exactly 6 digits"); return; }
-    if (newPin !== confirmPin) { toast.error("PINs do not match"); return; }
+  // The Settings PIN is the account's existing 6-digit login PIN — this app
+  // has only one PIN mechanism. The Current PIN is re-verified server-side
+  // (Supabase Auth) BEFORE the change is applied; the stored credential is
+  // never read, displayed, or exposed to the frontend.
+  const closePinDialog = () => {
+    setPinDialogOpen(false);
+    setCurrentPin("");
+    setNewPin("");
+    setConfirmPin("");
+  };
+
+  const changeSettingsPin = async () => {
+    if (!/^\d{6}$/.test(currentPin)) {
+      toast.error("Current PIN must be exactly 6 digits");
+      return;
+    }
+    if (!/^\d{6}$/.test(newPin)) {
+      toast.error("PIN must be exactly 6 digits");
+      return;
+    }
+    if (newPin !== confirmPin) {
+      toast.error("PINs do not match");
+      return;
+    }
     setChangingPin(true);
     try {
+      const { data: authData } = await supabase.auth.getSession();
+      const email = authData.session?.user.email;
+      if (!email) {
+        toast.error("Your session has expired. Please log in again.");
+        return;
+      }
+      const { error: currentError } = await supabase.auth.signInWithPassword({
+        email,
+        password: currentPin,
+      });
+      if (currentError) {
+        toast.error(
+          currentError.message?.toLowerCase().includes("invalid login credentials")
+            ? "Current PIN is incorrect"
+            : currentError.message || "Could not verify the current PIN",
+        );
+        setCurrentPin("");
+        return;
+      }
       const { error } = await supabase.auth.updateUser({ password: newPin });
-      if (error) { toast.error(error.message); return; }
-      toast.success("Your PIN has been changed");
-      setNewPin(""); setConfirmPin("");
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      toast.success("Settings PIN has been changed");
+      closePinDialog();
     } finally {
       setChangingPin(false);
     }
@@ -244,38 +316,115 @@ function SettingsPage() {
         </div>
 
         <div className="card-surface p-6">
-          <div className="section-title mb-2">Change My PIN</div>
+          <div className="section-title mb-2">Security</div>
           <div className="mb-5 border-b" />
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+          <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <Label>New 6-digit PIN</Label>
-              <Input
-                className="h-11 mt-1.5 tracking-[0.4em]"
-                inputMode="numeric"
-                maxLength={6}
-                placeholder="••••••"
-                value={newPin}
-                onChange={(e) => setNewPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              />
+              <div className="font-medium">Settings PIN</div>
+              <div className="text-sm text-muted-foreground">
+                Protect access to Settings with a 6-digit PIN.
+              </div>
+              <div className="text-xs text-muted-foreground">
+                It is the same PIN you use to log in — changing it also changes your login PIN.
+              </div>
             </div>
-            <div>
-              <Label>Confirm New PIN</Label>
-              <Input
-                className="h-11 mt-1.5 tracking-[0.4em]"
-                inputMode="numeric"
-                maxLength={6}
-                placeholder="••••••"
-                value={confirmPin}
-                onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              />
-            </div>
-          </div>
-          <div className="mt-4 flex items-center gap-3">
-            <Button onClick={changePin} disabled={changingPin}>{changingPin ? "Updating…" : "Change PIN"}</Button>
-            <span className="text-xs text-muted-foreground">This changes the PIN for the account you are signed in with.</span>
+            <Button onClick={() => setPinDialogOpen(true)}>Change PIN</Button>
           </div>
         </div>
 
+        {/* Change Settings PIN — the current PIN is verified server-side before
+            the change is applied; the stored credential is never read by the frontend. */}
+        <Dialog
+          open={pinDialogOpen}
+          onOpenChange={(open) => {
+            if (!open) closePinDialog();
+          }}
+        >
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Change Settings PIN</DialogTitle>
+              <DialogDescription>
+                Enter your current PIN, then choose a new 6-digit PIN.
+              </DialogDescription>
+            </DialogHeader>
+            <form
+              className="space-y-4"
+              noValidate
+              onSubmit={(e) => {
+                e.preventDefault();
+                void changeSettingsPin();
+              }}
+            >
+              <div>
+                <Label>Current PIN</Label>
+                <Input
+                  className="h-11 mt-1.5 tracking-[0.4em]"
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={6}
+                  placeholder="••••••"
+                  autoComplete="current-password"
+                  value={currentPin}
+                  onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                />
+              </div>
+              <div>
+                <Label>New 6-digit PIN</Label>
+                <Input
+                  className="h-11 mt-1.5 tracking-[0.4em]"
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={6}
+                  placeholder="••••••"
+                  autoComplete="new-password"
+                  value={newPin}
+                  onChange={(e) => setNewPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                />
+              </div>
+              <div>
+                <Label>Confirm New PIN</Label>
+                <Input
+                  className="h-11 mt-1.5 tracking-[0.4em]"
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={6}
+                  placeholder="••••••"
+                  autoComplete="new-password"
+                  value={confirmPin}
+                  onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                />
+              </div>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={closePinDialog}
+                  disabled={changingPin}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={
+                    changingPin ||
+                    currentPin.length !== 6 ||
+                    newPin.length !== 6 ||
+                    confirmPin.length !== 6
+                  }
+                >
+                  {changingPin ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Changing…
+                    </>
+                  ) : (
+                    "Change PIN"
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
 
         <div className="card-surface p-6">
           <div className="section-title mb-2">Backup / Restore</div>

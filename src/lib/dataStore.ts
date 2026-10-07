@@ -22,6 +22,7 @@ import {
 } from "./transportListStore";
 import type { TransportEntry } from "./transportListStore";
 import { normalizeTruckNumber } from "./format";
+import { applyCompletionRules, buildEnforcedPatch } from "./completionRules";
 
 // -----------------------------  TYPES  --------------------------------------
 // (unchanged from the original file)
@@ -676,7 +677,11 @@ export async function createMemo(input: MemoInput): Promise<Memo> {
   const { data: memoNumber, error: numErr } = await supabase.rpc("next_memo_number");
   if (numErr) throw numErr;
   const insert = (r: Record<string, unknown>) => supabase.from("memos").insert(r).select().single();
-  const row = { ...memoToRow(input), memo_number: memoNumber, is_deleted: false };
+  const row = {
+    ...memoToRow(applyCompletionRules(input)),
+    memo_number: memoNumber,
+    is_deleted: false,
+  };
   let { data, error } = await insert(row);
   if (error && "consignor" in row && isMissingConsignorColumn(error)) {
     const { consignor, ...withoutConsignor } = row;
@@ -687,9 +692,23 @@ export async function createMemo(input: MemoInput): Promise<Memo> {
   return rowToMemo(data);
 }
 export async function updateMemo(id: string, patch: Partial<MemoInput>): Promise<Memo> {
+  // Save-time enforcement, applied BEFORE the Supabase update: the effective
+  // patch always satisfies finalPaymentDate set => status "Completed" and
+  // balance 0, and status "Completed" => balance 0 — no matter what the
+  // caller's patch or the stored row contains. Only corrective keys are added,
+  // so every other column is written exactly as the caller provided.
+  // If the current row cannot be read, the rules are still applied to the
+  // patch itself (best-effort), instead of writing it through unchecked.
+  let current: Memo | undefined;
+  try {
+    current = await getMemo(id);
+  } catch {
+    current = undefined;
+  }
+  const effective = buildEnforcedPatch(current, patch);
   const run = (r: Record<string, unknown>) =>
     supabase.from("memos").update(r).eq("id", id).select().single();
-  const row = memoToRow(patch);
+  const row = memoToRow(effective);
   let { data, error } = await run(row);
   if (error && "consignor" in row && isMissingConsignorColumn(error)) {
     const { consignor, ...withoutConsignor } = row;
@@ -870,6 +889,12 @@ export async function syncMemoToTransport(
         patch[col] = val === "" && col.endsWith("_date") ? null : val;
       }
     }
+    // Completion invariant (R3): a settled memo must appear settled in
+    // transport_list too, even though balance never syncs normally.
+    if (memo.finalPaymentDate || memo.status === "Completed") {
+      patch.status = "Completed";
+      patch.balance = 0;
+    }
     if (Object.keys(patch).length === 0) return;
     await supabase.from("transport_list").update(patch).eq("id", existing.id);
   } catch (e) {
@@ -883,6 +908,10 @@ export async function syncMemoToTransport(
       if (val !== undefined) {
         patch[col] = val === "" && col.endsWith("_date") ? null : val;
       }
+    }
+    if (memo.finalPaymentDate || memo.status === "Completed") {
+      patch.status = "Completed";
+      patch.balance = 0;
     }
     if (Object.keys(patch).length > 0) {
       await supabase.from("transport_list").update(patch).eq("entry_number", entryNumber);
@@ -1754,44 +1783,46 @@ export async function importAllDataXlsx(file: File): Promise<ImportResult> {
       seen.add(key.toLowerCase());
       const truckNumberName = normalizeTruckNumber(cellStr(r, "truckNumber"));
       const consigneeNameName = cellStr(r, "consigneeName");
-      const row = memoToRow({
-        dispatchDate: cellDate(r, "dispatchDate"),
+      const row = memoToRow(
+        applyCompletionRules({
+          dispatchDate: cellDate(r, "dispatchDate"),
           fromLocation: cellStr(r, "fromLocation"),
           toLocation: cellStr(r, "toLocation"),
           transportName: cellStr(r, "transportName"),
-        truckNumber: truckNumberName,
-        consigneeName: consigneeNameName,
-        driverName: cellStr(r, "driverName"),
-        ownerName: cellStr(r, "ownerName"),
-        ownerPhone: cellStr(r, "ownerPhone"),
-        materialName: cellStr(r, "materialName"),
-        weightTons: cellNum(r, "weightTons"),
-        ratePerTon: cellNum(r, "ratePerTon"),
-        netFreight: cellNum(r, "netFreight"),
-        advance: cellNum(r, "advance"),
-        balance: cellNum(r, "balance"),
-        commission: cellNum(r, "commission"),
-        loadingCharges: cellNum(r, "loadingCharges"),
-        tds: cellNum(r, "tds"),
-        goodsMamuli: cellNum(r, "goodsMamuli"),
-        totalExpenses: cellNum(r, "totalExpenses"),
-        paidBy: cellStr(r, "paidBy"),
-        paymentMethod: cellStr(r, "paymentMethod"),
-        finalPayable: cellNum(r, "finalPayable"),
-        finalPaymentDate: cellDate(r, "finalPaymentDate"),
-        status: (cellStr(r, "status") || "Dispatched") as Memo["status"],
-        remarks: cellStr(r, "remarks"),
-        description: cellStr(r, "description"),
-        gcNo: cellStr(r, "gcNo"),
-        totalHire: cellNum(r, "totalHire"),
-        paidAt: cellStr(r, "paidAt"),
-        localDriverGuide: cellNum(r, "localDriverGuide"),
-        unloadingDate: cellDate(r, "unloadingDate"),
-        lrReceivedDate: cellDate(r, "lrReceivedDate"),
-        lrSubmittedDate: cellDate(r, "lrSubmittedDate"),
-        internalNotes: cellStr(r, "internalNotes"),
-        isDraft: cellBool(r, "isDraft"),
-      });
+          truckNumber: truckNumberName,
+          consigneeName: consigneeNameName,
+          driverName: cellStr(r, "driverName"),
+          ownerName: cellStr(r, "ownerName"),
+          ownerPhone: cellStr(r, "ownerPhone"),
+          materialName: cellStr(r, "materialName"),
+          weightTons: cellNum(r, "weightTons"),
+          ratePerTon: cellNum(r, "ratePerTon"),
+          netFreight: cellNum(r, "netFreight"),
+          advance: cellNum(r, "advance"),
+          balance: cellNum(r, "balance"),
+          commission: cellNum(r, "commission"),
+          loadingCharges: cellNum(r, "loadingCharges"),
+          tds: cellNum(r, "tds"),
+          goodsMamuli: cellNum(r, "goodsMamuli"),
+          totalExpenses: cellNum(r, "totalExpenses"),
+          paidBy: cellStr(r, "paidBy"),
+          paymentMethod: cellStr(r, "paymentMethod"),
+          finalPayable: cellNum(r, "finalPayable"),
+          finalPaymentDate: cellDate(r, "finalPaymentDate"),
+          status: (cellStr(r, "status") || "Dispatched") as Memo["status"],
+          remarks: cellStr(r, "remarks"),
+          description: cellStr(r, "description"),
+          gcNo: cellStr(r, "gcNo"),
+          totalHire: cellNum(r, "totalHire"),
+          paidAt: cellStr(r, "paidAt"),
+          localDriverGuide: cellNum(r, "localDriverGuide"),
+          unloadingDate: cellDate(r, "unloadingDate"),
+          lrReceivedDate: cellDate(r, "lrReceivedDate"),
+          lrSubmittedDate: cellDate(r, "lrSubmittedDate"),
+          internalNotes: cellStr(r, "internalNotes"),
+          isDraft: cellBool(r, "isDraft"),
+        }),
+      );
       const knownTruckId = truckNumberName ? (truckIdBy.get(truckNumberName.toLowerCase()) ?? null) : null;
       const knownConsigneeId = consigneeNameName
         ? (consigneeIdBy.get(consigneeNameName.toLowerCase()) ?? null)
@@ -1938,7 +1969,7 @@ export async function importAllDataXlsx(file: File): Promise<ImportResult> {
           }
         }
       }
-      const row = entryToRow(input);
+      const row = entryToRow(applyCompletionRules(input));
       if (overridden) row.overridden_fields = overridden;
 
       const { data: found, error: findErr } = await supabase

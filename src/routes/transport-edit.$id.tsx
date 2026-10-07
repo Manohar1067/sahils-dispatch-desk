@@ -123,16 +123,25 @@ function TransportEditPage() {
     }
   }, [form?.finalPaymentDate]);
 
+  // Completion rule: a settled entry always shows balance 0 in the form too.
+  useEffect(() => {
+    setForm((f) =>
+      f && f.status === "Completed" && Number(f.balance) !== 0 ? { ...f, balance: 0 } : f,
+    );
+  }, [form?.status]);
+
   const setAndRecalc = (k: NumKey, v: number) => {
     setForm((f) => {
       if (!f) return f;
       const next = { ...f, [k]: v };
       const netFreight = Math.round((next.weightTons || 0) * (next.ratePerTon || 0));
-      const balance = netFreight - (next.advance || 0);
+      const unpaid = netFreight - (next.advance || 0);
+      const settled = next.status === "Completed" || !!next.finalPaymentDate;
+      const balance = settled ? 0 : unpaid;
       const totalExpenses =
         (next.commission || 0) + (next.loadingCharges || 0) + (next.tds || 0) +
         (next.goodsMamuli || 0) + (next.haltingCharge || 0);
-      const finalPayable = balance - totalExpenses;
+      const finalPayable = unpaid - totalExpenses;
       return { ...next, netFreight, balance, totalExpenses, finalPayable };
     });
     const col = FIELD_TO_COL[k as string];
