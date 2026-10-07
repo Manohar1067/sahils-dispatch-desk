@@ -6,6 +6,8 @@ import {
   type ImportResult,
 } from "@/lib/dataStore";
 import { supabase } from "@/lib/supabaseClient";
+import { DriveBackupSection } from "@/components/DriveBackupSection";
+import { DEFAULT_TERMS, DEFAULT_TERMS_TEXT } from "@/lib/terms";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -74,7 +76,16 @@ function SettingsPage() {
     }
   };
 
-  useEffect(() => { if (data) setForm(data); }, [data]);
+  // Pre-load the seven ORIGINAL Conditions into the editor whenever the company
+  // has never saved a list of its own, so the conditions from the physical
+  // document are visible and editable here. This only seeds the local form — it
+  // is persisted only when an administrator explicitly presses Save Settings,
+  // and it never touches any memo record.
+  useEffect(() => {
+    if (data) {
+      setForm({ ...data, terms: data.terms?.trim() ? data.terms : DEFAULT_TERMS_TEXT });
+    }
+  }, [data]);
   useEffect(() => { setLastBackup(getLastBackup()); }, []);
 
   if (!form) return <AppShell title="Settings"><div className="card-surface p-8">Loading…</div></AppShell>;
@@ -187,7 +198,15 @@ function SettingsPage() {
             <div><Label>Website</Label><Input className="h-11 mt-1.5" value={form.website} onChange={(e) => set("website", e.target.value)} /></div>
             <div><Label>GST Number</Label><Input className="h-11 mt-1.5" value={form.gst} onChange={(e) => set("gst", e.target.value)} /></div>
             <div><Label>Jurisdiction Text</Label><Input className="h-11 mt-1.5" value={form.jurisdictionText} onChange={(e) => set("jurisdictionText", e.target.value)} /></div>
-            <div className="md:col-span-2"><Label>Address</Label><Textarea rows={2} value={form.address} onChange={(e) => set("address", e.target.value)} className="mt-1.5" /></div>
+            <div className="md:col-span-2">
+              <Label>Address</Label>
+              <Textarea rows={3} value={form.address} onChange={(e) => set("address", e.target.value)} className="mt-1.5" />
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Put the H.O. address on its own line starting with &ldquo;H.O.&rdquo; — the memo
+                header prints it as a separate <strong>H.O. Address</strong> line, exactly as on
+                the original receipt.
+              </p>
+            </div>
             <div className="md:col-span-2">
               <Label>Logo</Label>
               <div className="mt-1.5 flex items-center gap-4">
@@ -204,9 +223,24 @@ function SettingsPage() {
         </div>
 
         <div className="card-surface p-6">
-          <div className="section-title mb-2">Printed Terms & Conditions</div>
+          <div className="section-title mb-2">Printed Terms &amp; Conditions</div>
           <div className="mb-5 border-b" />
-          <Textarea rows={7} value={form.terms} onChange={(e) => set("terms", e.target.value)} />
+          <p className="mb-3 text-xs text-muted-foreground">
+            One condition per line. The receipt prints these automatically in up to three
+            columns (1&ndash;5 in the first, 6&ndash;10 in the second, 11&ndash;15 in the third).
+            Leave the box empty to print the {DEFAULT_TERMS.length} conditions from the original
+            Sahil Road Lines Conditions document.
+          </p>
+          <Textarea rows={10} value={form.terms} onChange={(e) => set("terms", e.target.value)} />
+          <div className="mt-3 flex items-center gap-3">
+            <Button
+              variant="outline"
+              onClick={() => set("terms", DEFAULT_TERMS_TEXT)}
+            >
+              Restore the original {DEFAULT_TERMS.length} conditions
+            </Button>
+            <Button variant="ghost" onClick={() => set("terms", "")}>Clear (use printed defaults)</Button>
+          </div>
         </div>
 
         <div className="card-surface p-6">
@@ -264,6 +298,12 @@ function SettingsPage() {
             using memo number, truck number, and company name as stable identifiers:
             existing records are never overwritten or duplicated, records previously deleted are restored, and missing records are added.
           </div>
+
+          {/* Google Drive — a separate authorisation from the Sahil Road Lines login.
+              The Drive workbook is produced by the same buildBackupWorkbook() that the
+              download button above uses, and a chosen Drive file flows into the existing
+              import confirmation / summary dialogs above. */}
+          <DriveBackupSection onPickImportFile={setImportFile} />
         </div>
       </div>
 

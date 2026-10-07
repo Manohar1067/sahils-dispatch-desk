@@ -4,6 +4,7 @@ import { useStoreData } from "@/lib/useStore";
 import { getMemo, getTruck, getConsignee, getSettings, type Memo, type FleetTruck, type Consignee, type Settings } from "@/lib/dataStore";
 import { formatDate, formatMoney, normalizeTruckNumber } from "@/lib/format";
 import { formatDisplayText } from "@/lib/textUtils";
+import { DEFAULT_TERMS_TEXT, TERMS_PER_COLUMN, chunkTerms, resolveTerms } from "@/lib/terms";
 import { Button } from "@/components/ui/button";
 import { Printer, Download, ArrowLeft, Pencil, ChevronDown, Phone, Mail, MapPin, Share2 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -159,7 +160,7 @@ function SRLDiamond({ size = 76 }: { size?: number }) {
  *   3. MEMO TITLE — No. / GOODS DESPATCH MEMO / Date
  *   4. MAIN DETAILS TABLE — From/To, G.C. No., Article, Owner, Driver,
  *      Consignor, Consignee, Description, Rate, Weight
- *   5. RED NOTICE BAR
+ *   5. GOODS RECEIPT NOTICE BAR
  *   6. FINANCIAL / TRUCK / EXPENSE AREA
  *   7. DECLARATION
  *   8. SIGNATURE — Driver on behalf of Owner
@@ -207,20 +208,75 @@ export const ReceiptPage = forwardRef<
 
   // Terms are laid out newspaper-style in columns of at most 5 items each, so a
   // long list stays compact and readable instead of running the receipt onto a
-  // second page. Each column continues the numbering (start={col*5 + 1}).
-  const termColumns = useMemo(() => {
-    const cols: string[][] = [];
-    for (let i = 0; i < terms.length; i += 5) cols.push(terms.slice(i, i + 5));
-    return cols;
-  }, [terms]);
+  // second page: 1–5 conditions → 1 column, 6–10 → 2 columns, 11–15 → 3.
+  // Each column continues the numbering (start={col*5 + 1}).
+  const termColumns = useMemo(() => chunkTerms(terms), [terms]);
+
+  /**
+   * The header prints a main address and an "H.O. Address" on its own line, as
+   * on the original physical memo.
+   *
+   * The configured Address is very often stored as BOTH addresses separated by
+   * a newline ("…Visakhapatnam - 530046.\nH.O.: Plot No.115, … Navi Mumbai…"),
+   * so the value is split into lines and any line that begins with an "H.O."
+   * marker is lifted out and printed as the H.O. line. Nothing is discarded:
+   * every non-H.O. line still prints, in order, and a line that merely contains
+   * "H.O." further along is left untouched (only a LEADING marker counts).
+   *
+   * No extra column is involved: the receipt reads the single existing `address`
+   * setting, so the database schema is untouched.
+   */
+  const { addressLines, hoLine } = useMemo(() => {
+    const HO_MARKER = /^h\.\s*o\s*\.?\s*[:.\-–]?\s*/i;
+    const lines = (settings.address || "")
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+    const plain: string[] = [];
+    let ho = "";
+    for (const line of lines) {
+      if (HO_MARKER.test(line)) {
+        const stripped = line.replace(HO_MARKER, "").trim();
+        ho = ho ? `${ho} ${stripped}` : stripped;
+      } else {
+        plain.push(line);
+      }
+    }
+    return { addressLines: plain, hoLine: ho };
+  }, [settings.address]);
+
+  // The existing company logo, printed undistorted. Both dimensions are `auto`
+  // with max constraints so the browser preserves the intrinsic aspect ratio —
+  // a fixed height with a max-width would stretch the artwork.
   const logoEl = settings.logoUrl ? (
-    <img src={settings.logoUrl} className="h-[72px] w-auto max-w-[100px] object-contain" alt="Company logo" style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.15))" }} />
+    <img
+      src={settings.logoUrl}
+      alt="Company logo"
+      style={{
+        width: "auto",
+        height: "auto",
+        maxWidth: "124px",
+        maxHeight: "92px",
+        objectFit: "contain",
+        filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.15))",
+      }}
+    />
   ) : (
-    <SRLDiamond size={72} />
+    <SRLDiamond size={92} />
   );
 
   const FONT = "'Inter', 'Segoe UI', system-ui, Roboto, Arial, Helvetica, sans-serif";
   const CASTELLAR = "'Castellar', 'Castellar MT', Georgia, 'Times New Roman', serif";
+
+  // ---- Contact block: phone list + one-line email --------------------------
+  // The configured phone field commonly holds several numbers separated by
+  // commas/semicolons (e.g. "9393102969,9246992969"). The numbers themselves are
+  // never altered — they are only laid out ONE PER LINE so the right-hand block
+  // can be narrower without a number being broken across two lines.
+  const phoneLines = (settings.phone || "")
+    .split(/[,;/\n]+/)
+    .map((p) => p.trim())
+    .filter(Boolean);
 
   // ---- Single-A4 auto-compaction ------------------------------------------
   // The document is designed at exactly screen-A4 scale. If the content (e.g.
@@ -250,12 +306,14 @@ export const ReceiptPage = forwardRef<
   const fs = (px: number) => Math.max(1, Math.round(px * compact * 1.08));
 
   // ---- Header heading auto-fit --------------------------------------------
-  // The company name is drawn weight 900, letter-spaced and stroked, then sized
-  // so it spans the FULL width of the centre header column — the largest size
-  // the fixed logo/contact columns leave available. Measuring beats a fixed px
-  // value here: the display serif is a local-only font (the Castellar stack
-  // falls back to Georgia elsewhere), so its metrics vary per machine and a
-  // hard-coded size either looks small or overflows into the contact column.
+  // The company name is the receipt masthead: drawn weight 900, letter-spaced
+  // and stroked, then measured and sized so it spans the full width of the
+  // centre header column — i.e. the central band occupied by
+  // "TRANSPORT CONTRACTORS & COMMISSION AGENTS" — without ever touching the
+  // logo on the left or the phone/email block on the right. Measuring beats a
+  // fixed px value here: the display serif is a local-only font (the Castellar
+  // stack falls back to Georgia elsewhere), so its metrics vary per machine and
+  // a hard-coded size either looks small or overflows into the contact column.
   // All fonts are local (no webfonts), so one synchronous measurement in
   // useLayoutEffect is stable and completes before paint.
   const [headingPx, setHeadingPx] = useState<number | null>(null);
@@ -275,14 +333,84 @@ export const ReceiptPage = forwardRef<
     // Text width scales linearly with font-size (letter-spacing is em-based),
     // so a single proportional pass lands on the column width. The 0.99 factor
     // keeps fractional rounding from nudging a hairline into the contact
-    // column; the clamp bounds the size for short/long configured names.
+    // column; the cap bounds the size for short configured names, while the
+    // floor keeps a long name legible. `fitted` is the hard ceiling, so the
+    // masthead can never overrun the logo or the contact block.
     const fitted = base * ((avail * 0.99) / rect.width);
-    const next = Math.max(fs(30), Math.min(fitted, fs(50)));
+    const next = Math.max(fs(30), Math.min(fitted, fs(52)));
     if (headingPx === null || Math.abs(next - headingPx) > 0.5) setHeadingPx(next);
     // Intentionally keyed to content/layout changes only — not headingPx — so
     // the fit runs once per content change and cannot feed back on itself.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [compact, settings.companyName]);
+
+  // ---- Contact e-mail auto-fit ---------------------------------------------
+  // The email must print as a SINGLE unbroken line. Rather than wrapping it or
+  // clipping it with an ellipsis, its font is measured and fitted to the (now
+  // narrower) contact column, so the complete address always stays on one line
+  // for whatever value is configured. Same scale-invariant, single-pass
+  // approach as the masthead above.
+  const contactRef = useRef<HTMLDivElement>(null);
+  const emailRef = useRef<HTMLDivElement>(null);
+  const [emailPx, setEmailPx] = useState<number | null>(null);
+
+  useLayoutEffect(() => {
+    const el = emailRef.current;
+    const box = contactRef.current;
+    if (!el || !box) return;
+    // Subtract the block's own horizontal padding (px-3 = 12px a side).
+    const avail = box.clientWidth - 24;
+    if (!(avail > 0)) return;
+    // `width: max-content` makes the element shrink-wrap the text, so the width
+    // measured here is the TEXT width rather than the column width.
+    const rect = el.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const base = parseFloat(el.style.fontSize) || 1;
+    const next = Math.max(fs(8), Math.min(base * ((avail * 0.98) / rect.width), fs(11)));
+    if (emailPx === null || Math.abs(next - emailPx) > 0.2) setEmailPx(next);
+    // Keyed to the content/layout inputs only — never to emailPx — so the fit
+    // cannot feed back on itself.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [compact, settings.email]);
+
+  // ---- Truck number auto-fit -----------------------------------------------
+  // The truck number stays centred in its (narrower) column and on ONE line. If a
+  // plate number is simply too long for the column, the font is scaled down to
+  // fit rather than being allowed to break mid-number or be clipped. The floor
+  // keeps it legible; if even the floor cannot fit, the normal wrapping fallback
+  // still applies, so nothing is ever cut off.
+  const truckValRef = useRef<HTMLDivElement>(null);
+  const [truckPx, setTruckPx] = useState<number | null>(null);
+
+  useLayoutEffect(() => {
+    const el = truckValRef.current;
+    const box = el?.parentElement;
+    if (!el || !box) return;
+    const cs = getComputedStyle(box);
+    const avail = box.clientWidth - parseFloat(cs.paddingLeft || "0") - parseFloat(cs.paddingRight || "0");
+    if (!(avail > 0)) return;
+    // Measure the UNWRAPPED TEXT width by briefly forcing `nowrap` and reading a
+    // Range over the text. A plain getBoundingClientRect() would return the
+    // element's box width, which a flex parent caps at the column width, so it
+    // could never reveal that the text is too long. This runs in
+    // useLayoutEffect, before paint, so the temporary style is never seen.
+    const prev = el.style.whiteSpace;
+    el.style.whiteSpace = "nowrap";
+    const rng = document.createRange();
+    rng.selectNodeContents(el);
+    const textW = rng.getBoundingClientRect().width;
+    el.style.whiteSpace = prev;
+    if (!(textW > 0)) return;
+    // Text width scales linearly with font size, so this single proportional pass
+    // lands the number exactly on the column width whatever size is currently
+    // applied — which makes the result a stable fixed point rather than an
+    // oscillation. The floor keeps a long plate legible; if even the floor cannot
+    // fit, the normal wrapping fallback still applies, so nothing is ever cut off.
+    const base = parseFloat(el.style.fontSize) || 1;
+    const next = Math.round(Math.max(fs(13), Math.min(base * ((avail * 0.98) / textW), fs(21))) * 10) / 10;
+    if (truckPx === null || Math.abs(next - truckPx) > 0.2) setTruckPx(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [compact, truckNo]);
 
   // ---- Single-A4 auto-compaction: measure once, settle, never churn --------
   // The previous implementation looped: `compact` was in its own dependency
@@ -317,8 +445,8 @@ export const ReceiptPage = forwardRef<
       memo.commission, memo.loadingCharges, memo.tds, memo.localDriverGuide,
       memo.goodsMamuli, memo.totalExpenses, memo.finalPayable,
       memo.finalPaymentDate, memo.paidBy, memo.paymentMethod,
-      settings.companyName, settings.address, settings.phone, settings.email,
-      settings.website, settings.jurisdictionText,
+      settings.companyName, settings.address, settings.phone,
+      settings.email, settings.website, settings.jurisdictionText,
       truck?.truckNumber, consignee?.companyName, terms,
     ]);
     if (solvedRef.current === key) return; // already settled — do nothing
@@ -380,7 +508,7 @@ export const ReceiptPage = forwardRef<
     boxSizing: "border-box",
     borderRight: bBorder ? `1px solid ${NAVY}` : "none",
     borderBottom: bBot ? `1px solid ${NAVY}` : "none",
-    padding: `${s(4)}px 8px`,
+    padding: `${s(3)}px 8px`,
     fontSize: `${fs(12.5)}px`,
     lineHeight: 1.25,
     // A flex/grid child will not shrink below its content width unless it is
@@ -412,23 +540,13 @@ export const ReceiptPage = forwardRef<
     overflowWrap: "anywhere",
     wordBreak: "break-word",
   };
-  const cellHeading: React.CSSProperties = {
-    padding: `${s(4)}px 8px`,
-    fontSize: `${fs(12)}px`,
-    fontWeight: 900,
-    color: "#0B2A55",
-    background: "#F5F6FA",
-    borderBottom: `1px solid ${NAVY}`,
-    letterSpacing: "0.6px",
-    textTransform: "uppercase" as const,
-  };
 
   const detailRow = (label: string, value: ReactNode, opts: React.CSSProperties = {}) => (
     <div style={{ ...cell(true, true), ...opts, display: "flex", alignItems: "stretch" }}>
-      <div style={{ width: "40%", flexShrink: 0, padding: `${s(5)}px 8px`, background: "#F5F6FA", borderRight: `1px solid ${NAVY}`, display: "flex", alignItems: "center" }}>
+      <div style={{ width: "40%", flexShrink: 0, padding: `${s(3)}px 8px`, background: "#F5F6FA", borderRight: `1px solid ${NAVY}`, display: "flex", alignItems: "center" }}>
         <span style={cellLabel}>{label}</span>
       </div>
-      <div style={{ flex: 1, minWidth: 0, padding: `${s(5)}px 8px`, display: "flex", alignItems: "center" }}>
+      <div style={{ flex: 1, minWidth: 0, padding: `${s(3)}px 8px`, display: "flex", alignItems: "center" }}>
         <span style={{ ...cellValue, display: "block", width: "100%", ...(opts.fontSize ? { fontSize: opts.fontSize } : {}) }}>{value}</span>
       </div>
     </div>
@@ -442,7 +560,7 @@ export const ReceiptPage = forwardRef<
         width: "794px",
         height: "1123px",
         boxSizing: "border-box",
-        padding: `${s(12)}px`,
+        padding: `${s(9)}px`,
         background: "#ffffff",
         color: "#000",
         fontFamily: FONT,
@@ -462,26 +580,31 @@ export const ReceiptPage = forwardRef<
           overflow: "visible",
         }}
       >
-      {/* ====== 1. HEADER ====== */}
+      {/* ====== 1. HEADER ======
+          Reproduces the original physical memo: existing logo on the left, the
+          masthead + business subtitle + address / H.O. address / jurisdiction
+          stacked and centred, and the phone numbers with the email directly
+          beneath them in a right-hand block (website, when set, follows). */}
       <div className="avoid-break flex items-stretch" style={{ borderBottom: `2px solid ${NAVY}` }}>
-        <div className="flex w-[112px] shrink-0 items-center justify-center px-2 py-[6px]">
+        <div className="flex w-[128px] shrink-0 items-center justify-center px-1 py-[4px]">
           {logoEl}
         </div>
-        <div className="flex min-w-0 flex-1 flex-col items-center justify-center px-3 py-[6px] text-center">
-          {/* Company name: SRL red with a Castellar-style display serif (fallback
+        <div className="flex min-w-0 flex-1 flex-col items-center justify-center px-2 py-[4px] text-center">
+          {/* Masthead: SRL red in a Castellar-style display serif (local fallback
               stack for machines without Castellar). Auto-fitted above to span
-              the full centre column, drawn weight 900, letter-spaced and
-              stroked for a strong printed masthead. `nowrap` is safe because
-              the layout effect sizes it to the column. */}
+              this centre column — the band taken by the subtitle below — so it
+              reads large and bold while staying clear of the logo and the
+              right-hand contact block. `nowrap` is safe because the layout
+              effect sizes the text to the column. */}
           <div
             ref={headingRef}
             style={{
-              fontSize: `${headingPx ?? fs(34)}px`,
+              fontSize: `${headingPx ?? fs(38)}px`,
               fontWeight: 900,
               color: RED,
-              WebkitTextStroke: "0.75px",
+              WebkitTextStroke: "0.8px",
               lineHeight: 1.05,
-              letterSpacing: "0.08em",
+              letterSpacing: "0.05em",
               fontFamily: CASTELLAR,
               maxWidth: "100%",
               whiteSpace: "nowrap",
@@ -489,36 +612,67 @@ export const ReceiptPage = forwardRef<
           >
             {settings.companyName || "SAHIL ROAD LINES"}
           </div>
-          <div style={{ fontSize: `${fs(14)}px`, fontWeight: 800, color: NAVY, letterSpacing: "0.7px", marginTop: `${s(1)}px`, maxWidth: "100%", overflowWrap: "anywhere" }}>
+          <div style={{ fontSize: `${fs(13.5)}px`, fontWeight: 800, color: NAVY, letterSpacing: "0.6px", marginTop: `${s(1)}px`, maxWidth: "100%", overflowWrap: "anywhere" }}>
             TRANSPORT CONTRACTORS &amp; COMMISSION AGENTS
           </div>
-          <div style={{ fontSize: `${fs(12.5)}px`, lineHeight: 1.25, marginTop: `${s(2)}px`, maxWidth: "100%", overflowWrap: "anywhere" }} className="text-neutral-700">
-            {settings.address}
-          </div>
-          <div style={{ fontSize: `${fs(12)}px`, fontWeight: 700, color: NAVY, marginTop: `${s(2)}px`, maxWidth: "100%", overflowWrap: "anywhere" }}>
+          {addressLines.map((line, i) => (
+            <div
+              key={i}
+              style={{ fontSize: `${fs(11.5)}px`, lineHeight: 1.25, marginTop: `${s(i === 0 ? 3 : 1)}px`, maxWidth: "100%", overflowWrap: "anywhere", color: "#222" }}
+            >
+              {line}
+            </div>
+          ))}
+          {hoLine && (
+            <div style={{ fontSize: `${fs(11.5)}px`, lineHeight: 1.25, marginTop: `${s(1)}px`, maxWidth: "100%", overflowWrap: "anywhere", color: "#222" }}>
+              H.O. {hoLine}
+            </div>
+          )}
+          <div style={{ fontSize: `${fs(11.5)}px`, fontWeight: 700, color: NAVY, marginTop: `${s(2)}px`, maxWidth: "100%", overflowWrap: "anywhere" }}>
             {settings.jurisdictionText || "Subject to Visakhapatnam Jurisdiction"}
           </div>
         </div>
-        {/* Contact details (cell phones, email, website) — GSTIN removed */}
+        {/* Contact block: the phone numbers stacked as a list, the email as a
+            SINGLE unbroken line directly beneath them. These stay in the
+            right-hand header column exactly as on the original receipt — never
+            moved to the centre or below the address. The block is deliberately
+            narrower than before so the freed width goes to the central company
+            header. */}
         <div
-          className="flex w-[190px] shrink-0 flex-col justify-center gap-[3px] px-4 py-[6px] text-left"
-          style={{ borderLeft: `1px solid ${NAVY}`, fontSize: `${fs(12)}px`, lineHeight: 1.3, overflowWrap: "anywhere", wordBreak: "break-word" }}
+          ref={contactRef}
+          className="flex w-[132px] shrink-0 flex-col justify-center gap-[3px] px-3 py-[4px] text-left"
+          style={{ borderLeft: `1px solid ${NAVY}`, fontSize: `${fs(12)}px`, lineHeight: 1.3 }}
         >
-          {settings.phone && <div className="font-semibold text-neutral-700">Ph: {settings.phone}</div>}
-          {settings.email && <div className="text-neutral-600">{settings.email}</div>}
-          {settings.website && <div className="text-neutral-600">{settings.website}</div>}
+          {phoneLines.length > 0 && (
+            <div className="font-semibold text-neutral-700">
+              <div>Ph: {phoneLines[0]}</div>
+              {phoneLines.slice(1).map((p, i) => (
+                <div key={i} style={{ paddingLeft: "2.1em" }}>{p}</div>
+              ))}
+            </div>
+          )}
+          {settings.email && (
+            <div
+              ref={emailRef}
+              className="text-neutral-600"
+              style={{ fontSize: `${emailPx ?? fs(10.5)}px`, whiteSpace: "nowrap", width: "max-content" }}
+            >
+              {settings.email}
+            </div>
+          )}
+          {settings.website && <div className="text-neutral-600" style={{ fontSize: `${fs(10.5)}px` }}>{settings.website}</div>}
         </div>
       </div>
 
       {/* ====== 2. MEMO TITLE BAR ====== */}
-      <div className="avoid-break flex items-center justify-between gap-3" style={{ borderBottom: `2px solid ${NAVY}`, background: NAVY, color: "#fff", padding: `${s(4)}px 14px` }}>
-        <div style={{ fontSize: `${fs(14)}px`, fontWeight: 800, minWidth: 0, overflowWrap: "anywhere" }}>
+      <div className="avoid-break flex items-center justify-between gap-3" style={{ borderBottom: `2px solid ${NAVY}`, background: NAVY, color: "#fff", padding: `${s(1)}px 14px` }}>
+        <div style={{ fontSize: `${fs(14)}px`, fontWeight: 800, lineHeight: 1.1, minWidth: 0, overflowWrap: "anywhere" }}>
           No. {memo.memoNumber}
         </div>
-        <div style={{ fontSize: `${fs(20)}px`, fontWeight: 900, letterSpacing: "2px", color: "#fff", textAlign: "center", minWidth: 0, overflowWrap: "anywhere" }}>
+        <div style={{ fontSize: `${fs(16)}px`, fontWeight: 900, letterSpacing: "2px", color: "#fff", textAlign: "center", lineHeight: 1.05, minWidth: 0, overflowWrap: "anywhere" }}>
           GOODS DESPATCH MEMO
         </div>
-        <div style={{ fontSize: `${fs(13)}px`, fontWeight: 700, minWidth: 0, overflowWrap: "anywhere" }}>
+        <div style={{ fontSize: `${fs(13)}px`, fontWeight: 700, lineHeight: 1.1, minWidth: 0, overflowWrap: "anywhere" }}>
           Date: {formatDate(memo.dispatchDate)}
         </div>
       </div>
@@ -529,16 +683,16 @@ export const ReceiptPage = forwardRef<
             wrap instead of clipping (overflow:hidden) so a long place name can
             never be cut off or spill across the To column. */}
         <div className="flex" style={{ borderBottom: `1px solid ${NAVY}` }}>
-          <div style={{ width: "20%", flexShrink: 0, padding: `${s(5)}px 8px`, background: "#F5F6FA", borderRight: `1px solid ${NAVY}`, display: "flex", alignItems: "center" }}>
+          <div style={{ width: "20%", flexShrink: 0, padding: `${s(3)}px 8px`, background: "#F5F6FA", borderRight: `1px solid ${NAVY}`, display: "flex", alignItems: "center" }}>
             <span style={cellLabel}>From:</span>
           </div>
-          <div style={{ width: "30%", minWidth: 0, padding: `${s(5)}px 8px`, borderRight: `1px solid ${NAVY}`, display: "flex", alignItems: "center" }}>
+          <div style={{ width: "30%", minWidth: 0, padding: `${s(3)}px 8px`, borderRight: `1px solid ${NAVY}`, display: "flex", alignItems: "center" }}>
             <span style={cellValue}>{formatDisplayText(memo.fromLocation) || "—"}</span>
           </div>
-          <div style={{ width: "15%", flexShrink: 0, padding: `${s(5)}px 8px`, background: "#F5F6FA", borderRight: `1px solid ${NAVY}`, display: "flex", alignItems: "center" }}>
+          <div style={{ width: "15%", flexShrink: 0, padding: `${s(3)}px 8px`, background: "#F5F6FA", borderRight: `1px solid ${NAVY}`, display: "flex", alignItems: "center" }}>
             <span style={cellLabel}>To:</span>
           </div>
-          <div style={{ width: "35%", minWidth: 0, padding: `${s(5)}px 8px`, display: "flex", alignItems: "center" }}>
+          <div style={{ width: "35%", minWidth: 0, padding: `${s(3)}px 8px`, display: "flex", alignItems: "center" }}>
             <span style={cellValue}>{formatDisplayText(memo.toLocation) || "—"}</span>
           </div>
         </div>
@@ -551,34 +705,47 @@ export const ReceiptPage = forwardRef<
         {detailRow("Description:", formatDisplayText(memo.description) || "—")}
         {/* Per Ton Rs. | value | Weight | value — side-by-side on one row */}
         <div className="flex" style={{ borderBottom: `0px solid ${NAVY}` }}>
-          <div style={{ width: "25%", flexShrink: 0, padding: `${s(5)}px 8px`, background: "#F5F6FA", borderRight: `1px solid ${NAVY}`, display: "flex", alignItems: "center" }}>
+          <div style={{ width: "25%", flexShrink: 0, padding: `${s(3)}px 8px`, background: "#F5F6FA", borderRight: `1px solid ${NAVY}`, display: "flex", alignItems: "center" }}>
             <span style={cellLabel}>Per Ton Rs.:</span>
           </div>
-          <div style={{ width: "25%", minWidth: 0, padding: `${s(5)}px 8px`, borderRight: `1px solid ${NAVY}`, display: "flex", alignItems: "center" }}>
+          <div style={{ width: "25%", minWidth: 0, padding: `${s(3)}px 8px`, borderRight: `1px solid ${NAVY}`, display: "flex", alignItems: "center" }}>
             <span style={cellValue}>{formatMoney(memo.ratePerTon)}</span>
           </div>
-          <div style={{ width: "20%", flexShrink: 0, padding: `${s(5)}px 8px`, background: "#F5F6FA", borderRight: `1px solid ${NAVY}`, display: "flex", alignItems: "center" }}>
+          <div style={{ width: "20%", flexShrink: 0, padding: `${s(3)}px 8px`, background: "#F5F6FA", borderRight: `1px solid ${NAVY}`, display: "flex", alignItems: "center" }}>
             <span style={cellLabel}>Weight:</span>
           </div>
-          <div style={{ width: "30%", minWidth: 0, padding: `${s(5)}px 8px`, display: "flex", alignItems: "center" }}>
+          <div style={{ width: "30%", minWidth: 0, padding: `${s(3)}px 8px`, display: "flex", alignItems: "center" }}>
             <span style={cellValue}>{memo.weightTons ? `${memo.weightTons} MT` : "—"}</span>
           </div>
         </div>
       </div>
 
-      {/* ====== 4. RED NOTICE BAR ====== */}
-      <div className="avoid-break" style={{ borderBottom: `2px solid ${NAVY}`, background: "#C1121F", color: "#fff", padding: `${s(5)}px 14px`, textAlign: "center" }}>
-        <div style={{ fontSize: `${fs(13.5)}px`, fontWeight: 900, letterSpacing: "0.6px" }}>
+      {/* ====== 4. GOODS RECEIPT NOTICE BAR ====== */}
+      <div className="avoid-break flex items-center" style={{ borderBottom: `2px solid ${NAVY}`, background: "#C1121F", color: "#fff", padding: `${s(1)}px 14px`, textAlign: "center" }}>
+        <div style={{ width: "100%", fontSize: `${fs(13.5)}px`, fontWeight: 900, letterSpacing: "0.6px", lineHeight: 1.1, whiteSpace: "nowrap" }}>
           Goods Receipt should be arrived within 15 days
         </div>
       </div>
 
-      {/* ====== 5. FINANCIAL / TRUCK / EXPENSE AREA ====== */}
-      <div className="avoid-break" style={{ borderBottom: `2px solid ${NAVY}` }}>
-        <div className="grid grid-cols-3">
+      {/* ====== 5. FINANCIAL / TRUCK / EXPENSE AREA ======
+          The original receipt draws this as one light three-column table. The
+          heavy rules that used to box it in have been reduced from 2px to a
+          clean 1px so the block reads the same as the rest of the memo. Only
+          the RULE WEIGHT changed here: every section, every label and every
+          value is retained.
+
+          The three columns are sized in PERCENTAGES (40% / 20% / 40%) rather than
+          fixed pixels, so the split stays correct at every A4 print scale and the
+          centre Truck column is now clearly narrower than the two data columns
+          either side of it. The "Financial", "Vehicle" and "Expenses" heading
+          rows have all been removed as requested — and because none of them is
+          replaced by an empty spacer row, the data rows move straight up into
+          their place. Only the heading words are gone: every label, every value
+          and the truck number are untouched. */}
+      <div className="avoid-break" style={{ borderBottom: `1px solid ${NAVY}` }}>
+        <div className="grid grid-cols-[40%_20%_40%]">
           {/* LEFT: Financial summary */}
-          <div style={{ borderRight: `2px solid ${NAVY}`, minWidth: 0 }}>
-            <div style={cellHeading}>Financial</div>
+          <div style={{ borderRight: `1px solid ${NAVY}`, minWidth: 0 }}>
             <div className="flex" style={{ borderBottom: `1px solid ${NAVY}` }}>
               <div style={{ ...cell(true, false), width: "52%", fontWeight: 900, fontSize: `${fs(13)}px` }}>Net Freight:</div>
               <div style={{ ...cell(false, false), width: "48%", fontWeight: 800, color: NAVY, fontSize: `${fs(14.5)}px` }}>{formatMoney(memo.netFreight)}</div>
@@ -595,24 +762,30 @@ export const ReceiptPage = forwardRef<
               <div style={{ ...cell(true, false), width: "52%", fontWeight: 900, fontSize: `${fs(13)}px` }}>Balance:</div>
               <div style={{ ...cell(false, false), width: "48%", fontWeight: 800, color: NAVY, fontSize: `${fs(14.5)}px` }}>{formatMoney(memo.balance)}</div>
             </div>
-            <div className="flex" style={{ borderBottom: `1px solid ${NAVY}` }}>
+            <div className="flex">
               <div style={{ ...cell(true, false), width: "52%", fontWeight: 900, fontSize: `${fs(13)}px` }}>Paid At:</div>
               <div style={{ ...cell(false, false), width: "48%", fontWeight: 800, color: NAVY, fontSize: `${fs(14.5)}px` }}>{formatDisplayText(memo.paidAt) || "—"}</div>
             </div>
           </div>
 
-          {/* CENTER: Vehicle — Truck No. only (Transport entry removed) */}
-          <div style={{ borderRight: `2px solid ${NAVY}`, display: "flex", flexDirection: "column", minWidth: 0 }}>
-            <div style={cellHeading}>Vehicle</div>
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: `${s(6)}px`, minHeight: 0 }}>
-              <div style={{ fontSize: `${fs(14)}px`, fontWeight: 800, color: "#3A4356" }}>Truck No.:</div>
-              <div style={{ fontSize: `${fs(22)}px`, fontWeight: 900, color: NAVY, lineHeight: 1.1, textAlign: "center", overflowWrap: "anywhere", wordBreak: "break-word" }}>{truckNo}</div>
+          {/* CENTRE: Truck No. only.
+              The "Vehicle" heading was removed earlier exactly as requested and is
+              NOT reintroduced here — the vehicle DATA is untouched, and no empty
+              replacement heading is put in its place: the column simply carries
+              the truck number, vertically centred against the two labelled
+              columns either side. The column is a percentage of the receipt
+              width (20%), and the number is auto-fitted to it, so the truck
+              number stays centred, on one line and never clipped at any A4
+              scale. */}
+          <div style={{ borderRight: `1px solid ${NAVY}`, display: "flex", flexDirection: "column", minWidth: 0 }}>
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: `${s(4)}px ${s(2)}px`, minHeight: 0 }}>
+              <div style={{ fontSize: `${fs(13.5)}px`, fontWeight: 800, color: "#3A4356", textAlign: "center" }}>Truck No.:</div>
+              <div ref={truckValRef} style={{ fontSize: `${truckPx ?? fs(21)}px`, fontWeight: 900, color: NAVY, lineHeight: 1.1, textAlign: "center", overflowWrap: "anywhere", wordBreak: "break-word" }}>{truckNo}</div>
             </div>
           </div>
 
           {/* RIGHT: Expenses */}
           <div style={{ minWidth: 0 }}>
-            <div style={cellHeading}>Expenses</div>
             <div className="flex" style={{ borderBottom: `1px solid ${NAVY}` }}>
               <div style={{ ...cell(true, false), width: "52%", fontWeight: 900, fontSize: `${fs(13)}px` }}>Commission:</div>
               <div style={{ ...cell(false, false), width: "48%", fontWeight: 800, color: NAVY, fontSize: `${fs(14.5)}px` }}>{formatMoney(memo.commission)}</div>
@@ -667,14 +840,27 @@ export const ReceiptPage = forwardRef<
         </div>
       </div>
 
-      {/* ====== 8. TERMS & CONDITIONS ====== */}
+      {/* ====== 8. TERMS & CONDITIONS ======
+          Compact newspaper columns so the conditions never stretch the memo
+          onto a second page: 1–5 conditions print as one column, 6–10 as two
+          (1–5 | 6–7 for the seven original conditions), 11–15 as three. Each
+          column restarts at its own ordinal, so the list reads 1…n straight
+          across. Long conditions wrap inside their own column and can never
+          overlap the neighbouring column. */}
       {terms.length > 0 && (
         <div className="avoid-break" style={{ borderBottom: `1px solid ${NAVY}`, padding: `${s(4)}px 14px` }}>
           <div style={{ fontSize: `${fs(11)}px`, fontWeight: 900, color: NAVY, marginBottom: `${s(1)}px`, letterSpacing: "0.5px", textTransform: "uppercase" as const }}>Terms &amp; Conditions</div>
           <div className="flex" style={{ gap: `${s(10)}px`, alignItems: "flex-start" }}>
             {termColumns.map((col, ci) => (
-              <ol key={ci} start={ci * 5 + 1} className="list-decimal pl-5" style={{ flex: 1, minWidth: 0, margin: 0, fontSize: `${fs(10)}px`, lineHeight: 1.25, color: "#333" }}>
-                {col.map((t, i) => <li key={i} style={{ marginBottom: 0 }}>{t}</li>)}
+              <ol
+                key={ci}
+                start={ci * TERMS_PER_COLUMN + 1}
+                className="list-decimal pl-5"
+                style={{ flex: 1, minWidth: 0, margin: 0, fontSize: `${fs(10)}px`, lineHeight: 1.25, color: "#333" }}
+              >
+                {col.map((t, i) => (
+                  <li key={i} style={{ marginBottom: 0, minWidth: 0, overflowWrap: "anywhere", wordBreak: "break-word" }}>{t}</li>
+                ))}
               </ol>
             ))}
           </div>
@@ -683,12 +869,12 @@ export const ReceiptPage = forwardRef<
 
       {/* ====== 9. SIGNATURES ====== */}
       <div className="avoid-break flex" style={{ borderBottom: `1px solid ${NAVY}` }}>
-        <div style={{ flex: 1, borderRight: `1px solid ${NAVY}`, padding: `${s(6)}px 14px`, textAlign: "center", minHeight: `${s(130)}px` }}>
-          <div style={{ fontSize: `${fs(11)}px`, fontWeight: 700, color: "#555", marginTop: `${s(78)}px` }}>Signature of the Driver</div>
+        <div style={{ flex: 1, borderRight: `1px solid ${NAVY}`, padding: `${s(6)}px 14px`, textAlign: "center", minHeight: `${s(112)}px` }}>
+          <div style={{ fontSize: `${fs(11)}px`, fontWeight: 700, color: "#555", marginTop: `${s(66)}px` }}>Signature of the Driver</div>
           <div style={{ fontSize: `${fs(10)}px`, fontWeight: 600, color: "#777" }}>on behalf of the Owner</div>
         </div>
-        <div style={{ flex: 1, padding: `${s(6)}px 14px`, textAlign: "center", minHeight: `${s(130)}px` }}>
-          <div style={{ fontSize: `${fs(11)}px`, fontWeight: 700, color: "#555", marginTop: `${s(78)}px` }}>For <b style={{ color: NAVY, fontWeight: 800 }}>{settings.companyName || "SAHIL ROAD LINES"}</b></div>
+        <div style={{ flex: 1, padding: `${s(6)}px 14px`, textAlign: "center", minHeight: `${s(112)}px` }}>
+          <div style={{ fontSize: `${fs(11)}px`, fontWeight: 700, color: "#555", marginTop: `${s(66)}px` }}>For <b style={{ color: NAVY, fontWeight: 800 }}>{settings.companyName || "SAHIL ROAD LINES"}</b></div>
           <div style={{ fontSize: `${fs(10)}px`, fontWeight: 600, color: "#777" }}>Authorised Signatory</div>
         </div>
       </div>
@@ -718,11 +904,13 @@ function MemoView() {
   const [busy, setBusy] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
 
-  /** Existing terms text, split into numbered points. Content is never altered. */
-  const terms = (settings?.terms ?? "")
-    .split(/\r?\n/)
-    .map((t) => t.replace(/^\s*(\d+[.)]\s*|[-•*]\s*)/, "").trim())
-    .filter(Boolean);
+  /**
+   * Conditions to print: the company's stored/edited list when it has one,
+   * otherwise the SEVEN conditions from the original physical Conditions
+   * document. Nothing stored is ever altered, and no condition is dropped,
+   * reordered, merged or duplicated.
+   */
+  const terms = useMemo(() => resolveTerms(settings?.terms), [settings?.terms]);
 
   /** Non-null settings so the shared document always receives a valid value. */
   const safeSettings: Settings = settings ?? {
@@ -734,7 +922,7 @@ function MemoView() {
     logoUrl: "",
     gst: "",
     jurisdictionText: "Subject to Visakhapatnam Jurisdiction",
-    terms: "",
+    terms: DEFAULT_TERMS_TEXT,
     darkMode: false,
   };
 

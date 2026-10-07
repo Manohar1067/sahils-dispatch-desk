@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createPortal } from "react-dom";
 import { ReceiptPage } from "./memo.$id";
 import type { Memo, Settings } from "@/lib/dataStore";
+import { DEFAULT_TERMS_TEXT, resolveTerms } from "@/lib/terms";
 
 export const Route = createFileRoute("/test-receipt")({
   component: TestReceipt,
@@ -52,46 +53,64 @@ const mockMemo: Memo = {
   updatedAt: "2026-08-28",
 };
 
-const longTerms = [
-  "The material is received in good condition and will be delivered at the destination place safe and sound.",
-  "The lorry is loaded with the material mentioned above and the responsibility of the material lies with the driver till delivery.",
-  "The driver is responsible for any loss or damage caused to the material in transit on account of his negligence.",
-  "Unauthorised overloading beyond the lorry capacity is strictly prohibited and the same will be treated as a breach.",
-  "The consignee must check and confirm the material at the time of unloading; no claims will be entertained afterwards.",
-  "Demurrage and detention charges, if any, will be payable by the consignee at prevailing rates as per the market.",
-  "This consignment is subject to the jurisdiction of Visakhapatnam courts only for any disputes.",
-  "Octroi, tolls, taxes and other statutory charges en route shall be borne by the owner of the material.",
-  "The transporter shall not be liable for delays caused by floods, accidents, strikes, or acts of God.",
-  "Advance paid at the time of loading shall be adjusted against the final freight on delivery.",
-  "The balance amount shall be settled within the agreed credit period as per the booking note.",
-  "Any amount remaining unpaid after the due date shall attract interest at 18% per annum.",
-  "Shortage or damage, if any, must be reported in writing within 48 hours of delivery with driver's acknowledgement.",
-  "The company reserves the right to amend any of the above terms and conditions without prior notice.",
-];
+const longTerms = resolveTerms(DEFAULT_TERMS_TEXT);
 
 const mockSettings: Settings = {
   companyName: "SAHIL ROAD LINES",
-  address: "D.No. 5-2-3, Main Road, Visakhapatnam - 530001",
-  phone: "9988776655",
+  // Mirrors how the company really stores the header addresses: BOTH in this one
+  // field, newline-separated, with the second line marked "H.O.:". The header
+  // must lift the H.O. line onto its own row.
+  address:
+    "D.No. 5-2-3, Main Road, Visakhapatnam - 530001\n" +
+    "H.O.: D.No. 8-4-12, Station Road, Visakhapatnam - 530001",
+  phone: "9393102969,9246992969",
   email: "sahil111tms@gmail.com",
   website: "www.sahiiroadlines.in",
   logoUrl: "",
   gst: "gstascwerghjytrdsa",
   jurisdictionText: "Subject to Visakhapatnam Jurisdiction",
-  terms: "",
+  terms: DEFAULT_TERMS_TEXT,
   darkMode: false,
+};
+
+/**
+ * `?shape=prod` mirrors the LIVE `settings` row exactly: both addresses stored
+ * in the single `address` field, separated by a newline, with no separate
+ * H.O. field. The header must still lift the "H.O.:" line onto its own row.
+ */
+const PROD_SETTINGS: Settings = {
+  ...mockSettings,
+  address:
+    "Plot No.5, N.H.-5 Road, Opp.Radio Station, Kurmannapalem, Visakhapatnam - 530046.\n" +
+    "H.O.: Plot No.115,Sector-19 C, Behind Banking Complex, Vashi, Navi Mumbai -705, 022-27652009",
 };
 
 function TestReceipt() {
   const ref = { current: null as HTMLDivElement | null };
+  const params =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search)
+      : new URLSearchParams();
+  const settings = params.get("shape") === "prod" ? PROD_SETTINGS : mockSettings;
+  // `?truck=XXXX` stresses the centre column with a deliberately long plate
+  // number, to confirm the receipt shrinks it instead of clipping it.
+  const truckNumber = params.get("truck") || "ap12we2345";
+  const truck = {
+    id: "mock-t",
+    truckNumber,
+    ownerName: "mnbvc",
+    ownerPhone: "",
+    driverName: "werty",
+    driverPhone: "",
+  };
   return (
     <div className="mx-auto p-4" style={{ background: "#e5e5e5" }}>
       <div className="mx-auto my-8 overflow-x-auto">
         <ReceiptPage
           ref={ref}
           memo={mockMemo}
-          settings={mockSettings}
-          truck={{ id: "mock-t", truckNumber: "ap12we2345", ownerName: "mnbvc", ownerPhone: "", driverName: "werty", driverPhone: "" }}
+          settings={settings}
+          truck={truck}
           consignee={{ id: "mock-c", companyName: mockMemo.consigneeName, address: "", contactPerson: "", phone: "", city: "", state: "" }}
           terms={longTerms}
         />
@@ -102,8 +121,8 @@ function TestReceipt() {
           <div className="print-only" aria-hidden="true">
             <ReceiptPage
               memo={mockMemo}
-              settings={mockSettings}
-              truck={{ id: "mock-t", truckNumber: "ap12we2345", ownerName: "mnbvc", ownerPhone: "", driverName: "werty", driverPhone: "" }}
+              settings={settings}
+              truck={truck}
               consignee={{ id: "mock-c", companyName: mockMemo.consigneeName, address: "", contactPerson: "", phone: "", city: "", state: "" }}
               terms={longTerms}
             />

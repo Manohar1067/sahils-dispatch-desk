@@ -928,7 +928,16 @@ export async function _resetStore(): Promise<void> {
 
 // -------------------------- BACKUP / RESTORE (PARTS 11 & 12) ---------------
 
-export async function exportAllDataXlsx(): Promise<void> {
+/**
+ * Builds the full backup workbook (Memos / Fleet / Consignees / Transport /
+ * Settings sheets) and returns it as a Blob.  This is the SINGLE source of the
+ * backup bytes: the local "Download Excel Backup" button and the Google Drive
+ * backup both consume this exact function, so a Drive backup and a local
+ * download are byte-identical.
+ *
+ * Extracted from exportAllDataXlsx() with no behavioural change.
+ */
+export async function buildBackupWorkbook(): Promise<Blob> {
   const XLSX = await import("xlsx");
   const [trucks, consignees, memos, settings, transports] = await Promise.all([
     getTrucks(),
@@ -1075,13 +1084,29 @@ export async function exportAllDataXlsx(): Promise<void> {
   const settingsRows = [{ ...settings }];
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(settingsRows), "Settings");
 
-  const date = new Date().toISOString().slice(0, 10);
   const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-  const blob = new Blob([wbout], { type: "application/octet-stream" });
+  return new Blob([wbout], { type: "application/octet-stream" });
+}
+
+/** Canonical backup filename: Sahil_Road_Lines_Backup_YYYY-MM-DD.xlsx */
+export function backupFileName(date = new Date().toISOString().slice(0, 10)): string {
+  return `Sahil_Road_Lines_Backup_${date}.xlsx`;
+}
+
+/** Filename prefix every backup workbook starts with — used to locate existing
+ *  backups in Google Drive without matching unrelated files. */
+export const BACKUP_FILENAME_PREFIX = "Sahil_Road_Lines_Backup";
+
+/**
+ * Downloads the Excel backup to the user's machine.
+ * Unchanged behaviour: same workbook, same blob MIME type, same filename shape.
+ */
+export async function exportAllDataXlsx(): Promise<void> {
+  const blob = await buildBackupWorkbook();
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `Sahil_Road_Lines_Backup_${date}.xlsx`;
+  a.download = backupFileName();
   document.body.appendChild(a);
   a.click();
   a.remove();
