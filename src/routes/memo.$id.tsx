@@ -5,6 +5,7 @@ import { getMemo, getTruck, getConsignee, getSettings, type Memo, type FleetTruc
 import { formatDate, formatMoney, normalizeTruckNumber } from "@/lib/format";
 import { formatDisplayText } from "@/lib/textUtils";
 import { DEFAULT_TERMS_TEXT, TERMS_PER_COLUMN, chunkTerms, resolveTerms } from "@/lib/terms";
+import { RECEIPT_LOGO_URL } from "@/lib/receiptLogo";
 import { Button } from "@/components/ui/button";
 import { Printer, Download, ArrowLeft, Pencil, ChevronDown, Phone, Mail, MapPin, Share2 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -245,12 +246,17 @@ export const ReceiptPage = forwardRef<
     return { addressLines: plain, hoLine: ho };
   }, [settings.address]);
 
-  // The existing company logo, printed undistorted. Both dimensions are `auto`
-  // with max constraints so the browser preserves the intrinsic aspect ratio —
-  // a fixed height with a max-width would stretch the artwork.
-  const logoEl = settings.logoUrl ? (
+  /**
+   * The receipt logo is the FIXED, developer-approved artwork shipped with the
+   * app (`RECEIPT_LOGO_URL`). It is intentionally NOT `settings.logoUrl`:
+   * changing the logo in Settings must never change what the receipt prints.
+   * Both dimensions are `auto` with max constraints so the browser preserves
+   * the intrinsic aspect ratio — a fixed height with a max-width would stretch
+   * the artwork.
+   */
+  const logoEl = RECEIPT_LOGO_URL ? (
     <img
-      src={settings.logoUrl}
+      src={RECEIPT_LOGO_URL}
       alt="Company logo"
       style={{
         width: "auto",

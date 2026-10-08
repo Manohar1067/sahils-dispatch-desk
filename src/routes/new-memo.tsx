@@ -65,7 +65,11 @@ const emptyForm = (): MemoInput => ({
   dispatchDate: new Date().toISOString(),
   fromLocation: "",
   toLocation: "",
-  consignor: "",
+  // Default starting value for the Consignee field on a NEW memo. It is only a
+  // seed — the field stays fully editable (append/edit/replace) and the value
+  // the user saves is what gets persisted. Existing memos are never touched:
+  // Edit mode loads the stored value instead of this default.
+  consignor: "As per the challan",
   transportName: "",
   consigneeId: "",
   truckId: "",
