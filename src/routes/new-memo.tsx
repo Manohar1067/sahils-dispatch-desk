@@ -27,7 +27,7 @@ const DRAFT_CACHE_KEY = "srl:new-memo:in-progress";
  * The unsaved-draft payload. The memo number is stored explicitly so that
  * reopening the page restores the SAME working memo number instead of
  * computing a new one. The memo counter is never advanced by merely opening
- * the page or saving a draft â€” only by actually saving the memo (createMemo).
+ * the page or saving a draft — only by actually saving the memo (createMemo).
  */
 type DraftCache = {
   memoNumber: string;
@@ -66,7 +66,7 @@ const emptyForm = (): MemoInput => ({
   fromLocation: "",
   toLocation: "",
   // Default starting value for the Consignee field on a NEW memo. It is only a
-  // seed â€” the field stays fully editable (append/edit/replace) and the value
+  // seed — the field stays fully editable (append/edit/replace) and the value
   // the user saves is what gets persisted. Existing memos are never touched:
   // Edit mode loads the stored value instead of this default.
   consignor: "As per the challan",
@@ -141,7 +141,7 @@ function NewMemo() {
       if (draft && draft.form) {
         const restored = { ...emptyForm(), ...draft.form };
         setForm(restored);
-        // A restored draft may carry a manually-typed Net Freight â€” keep the
+        // A restored draft may carry a manually-typed Net Freight — keep the
         // override on so the auto-calc effect cannot silently overwrite it.
         setFreightOverride(Math.abs((restored.netFreight || 0) - Math.round((restored.weightTons || 0) * (restored.ratePerTon || 0))) > 0.01);
         if (draft.memoNumber) {
@@ -151,7 +151,7 @@ function NewMemo() {
         }
         toast.info("Restored your unsaved memo");
       } else {
-        // Fresh start â€” show the next number as a PREVIEW only. peekNextMemoNumber
+        // Fresh start — show the next number as a PREVIEW only. peekNextMemoNumber
         // reads the counter and does NOT increment/reserve it; the permanent
         // increment happens solely in createMemo() at save time.
         peekNextMemoNumber().then(setNextNum);
@@ -159,7 +159,7 @@ function NewMemo() {
       return;
     }
 
-    // Edit mode: keep the existing memo number â€” never generate/increment.
+    // Edit mode: keep the existing memo number — never generate/increment.
     getMemo(edit).then((m) => {
       if (m) {
         const { id, memoNumber, isDeleted, createdAt, updatedAt, deletedAt, ...rest } = m;
@@ -207,7 +207,7 @@ function NewMemo() {
     try {
       const cache: DraftCache = { memoNumber: nextNum, form };
       localStorage.setItem(DRAFT_CACHE_KEY, JSON.stringify(cache));
-    } catch { /* quota â€” ignore */ }
+    } catch { /* quota — ignore */ }
   }, [form, nextNum, dirty, edit]);
 
   // PART 9: Auto-complete memo when final payment date is set.
@@ -283,7 +283,7 @@ function NewMemo() {
         toast.success(draft ? "Draft saved" : "Memo updated");
         setDirty(false);
         if (!draft) {
-          // Finalizing a draft must create its transport entry â€” syncMemoToTransport
+          // Finalizing a draft must create its transport entry — syncMemoToTransport
           // only updates an EXISTING row, so drafts (which have none) would never
           // appear in the Transport List otherwise.
           const m = await getMemo(edit);
@@ -354,7 +354,7 @@ function NewMemo() {
               options={(consignees ?? []).map((c) => ({ value: c.companyName, label: c.companyName, keywords: `${c.city} ${c.contactPerson}` }))}
               value={form.consigneeName}
               onChange={(v) => set("consigneeName", v)}
-              placeholder="Search or type consignorâ€¦"
+              placeholder="Search or type consignor…"
               allowCustom
               createLabel="Use"
             />
@@ -372,7 +372,7 @@ function NewMemo() {
                 const t = trucks?.find((x) => normalizeTruckNumber(x.truckNumber) === norm);
                 if (t) setForm((f) => ({ ...f, driverName: t.driverName, ownerName: t.ownerName, ownerPhone: t.ownerPhone }));
               }}
-              placeholder="Search or type truck numberâ€¦"
+              placeholder="Search or type truck number…"
               allowCustom
               createLabel="Use"
             />
@@ -424,10 +424,10 @@ function NewMemo() {
                 <SelectItem value="PhonePe">PhonePe</SelectItem>
                 <SelectItem value="GPay">GPay</SelectItem>
                 <SelectItem value="Paytm">Paytm</SelectItem>
-                <SelectItem value="Axis Bank â€“ Current">Axis Bank â€“ Current</SelectItem>
-                <SelectItem value="Axis Bank â€“ Savings">Axis Bank â€“ Savings</SelectItem>
-                <SelectItem value="HDFC Bank â€“ Current">HDFC Bank â€“ Current</SelectItem>
-                <SelectItem value="HDFC Bank â€“ Savings">HDFC Bank â€“ Savings</SelectItem>
+                <SelectItem value="Axis Bank – Current">Axis Bank – Current</SelectItem>
+                <SelectItem value="Axis Bank – Savings">Axis Bank – Savings</SelectItem>
+                <SelectItem value="HDFC Bank – Current">HDFC Bank – Current</SelectItem>
+                <SelectItem value="HDFC Bank – Savings">HDFC Bank – Savings</SelectItem>
               </SelectContent>
             </Select>
           </Field>
@@ -445,8 +445,8 @@ function NewMemo() {
       {/* Fixed action bar */}
       <div className="fixed bottom-0 left-60 right-0 z-10 flex justify-end gap-2 border-t bg-background/95 px-8 py-3 backdrop-blur">
         <Button variant="outline" disabled={saving} onClick={() => { if (!dirty || confirm("Discard unsaved changes?")) nav({ to: "/register" }); }}>Cancel</Button>
-        <Button variant="outline" disabled={saving} onClick={() => submit(true)}>{saving ? "Savingâ€¦" : "Save Draft"}</Button>
-        <Button disabled={saving} onClick={() => submit(false)}>{saving ? "Savingâ€¦" : "Save Memo"}</Button>
+        <Button variant="outline" disabled={saving} onClick={() => submit(true)}>{saving ? "Saving…" : "Save Draft"}</Button>
+        <Button disabled={saving} onClick={() => submit(false)}>{saving ? "Saving…" : "Save Memo"}</Button>
       </div>
     </AppShell>
   );
