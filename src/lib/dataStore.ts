@@ -1,12 +1,12 @@
-/**
+﻿/**
  * ============================================================================
- *  DATA STORE â€” Sahil Road Lines ERP (Supabase-backed)
+ *  DATA STORE ├óΓé¼ΓÇ¥ Sahil Road Lines ERP (Supabase-backed)
  * ----------------------------------------------------------------------------
- *  Same exported functions/types as the original localStorage version â€”
+ *  Same exported functions/types as the original localStorage version ├óΓé¼ΓÇ¥
  *  every UI component that imports from this file needs zero changes.
  *
  *  Audit log entries and status history are written automatically by database
- *  triggers (see supabase_migration_2.sql) â€” this file does not write to
+ *  triggers (see supabase_migration_2.sql) ├óΓé¼ΓÇ¥ this file does not write to
  *  audit_log or memo_status_history directly, it just reads them back.
  * ============================================================================
  */
@@ -83,8 +83,8 @@ export interface Memo {
   transportName: string;
   consigneeId: string;
   truckId: string;
-  truckNumber: string;      // free text, like transportName â€” no link required
-  consigneeName: string;    // free text, like transportName â€” no link required
+  truckNumber: string;      // free text, like transportName ├óΓé¼ΓÇ¥ no link required
+  consigneeName: string;    // free text, like transportName ├óΓé¼ΓÇ¥ no link required
   driverName: string;
   ownerName: string;
   ownerPhone: string;
@@ -387,7 +387,7 @@ function rowToHistory(r: any): MemoStatusHistory {
 }
 
 // -------------------------- REALTIME SUBSCRIBE BUS ---------------------------
-// Same subscribe() API as before â€” components don't need to change.
+// Same subscribe() API as before ├óΓé¼ΓÇ¥ components don't need to change.
 // Internally now backed by Supabase Realtime instead of a manual local emit.
 
 const listeners = new Set<() => void>();
@@ -570,7 +570,7 @@ export async function permanentlyDeleteConsignee(id: string): Promise<void> {
 export interface TrashItem {
   kind: "Memo" | "Truck" | "Consignor" | "Transport";
   id: string;
-  label: string;       // display text â€” memo number / truck number / company name
+  label: string;       // display text ├óΓé¼ΓÇ¥ memo number / truck number / company name
   deletedAt?: string;
 }
 
@@ -694,7 +694,7 @@ export async function createMemo(input: MemoInput): Promise<Memo> {
 export async function updateMemo(id: string, patch: Partial<MemoInput>): Promise<Memo> {
   // Save-time enforcement, applied BEFORE the Supabase update: the effective
   // patch always satisfies finalPaymentDate set => status "Completed" and
-  // balance 0, and status "Completed" => balance 0 — no matter what the
+  // balance 0, and status "Completed" => balance 0 ΓÇö no matter what the
   // caller's patch or the stored row contains. Only corrective keys are added,
   // so every other column is written exactly as the caller provided.
   // If the current row cannot be read, the rules are still applied to the
@@ -738,7 +738,7 @@ export async function permanentlyDeleteMemo(id: string): Promise<void> {
 }
 
 // -------------------------- LOGS --------------------------------------------
-// Written automatically by database triggers â€” these functions only read.
+// Written automatically by database triggers ├óΓé¼ΓÇ¥ these functions only read.
 
 export async function getAuditLog(): Promise<AuditLogEntry[]> {
   const { data, error } = await supabase
@@ -814,7 +814,7 @@ export async function ensureTruckExists(
 
 // -------------------------- TRANSPORT SYNC (PARTS 8, 9, 10) -----------------
 
-/** Memo input field â†’ transport_list column name mapping for sync. */
+/** Memo input field ├óΓÇáΓÇÖ transport_list column name mapping for sync. */
 const SYNC_FIELD_MAP: Array<[keyof MemoInput, string]> = [
   ["dispatchDate", "dispatch_date"],
   ["fromLocation", "from_location"],
@@ -857,10 +857,10 @@ const SYNC_FIELD_MAP: Array<[keyof MemoInput, string]> = [
  *
  * SYNC RULES:
  *  - Normal/operational fields (truck, driver, consignee, dates, status, etc.)
- *    always sync from Register â†’ Transport.
+ *    always sync from Register ├óΓÇáΓÇÖ Transport.
  *  - Calculation/financial fields (rate, freight, advance, balance, etc.) are
- *    NEVER synced from Register â†’ Transport after initial creation.
- *  - There is NO reverse sync from Transport â†’ Register.
+ *    NEVER synced from Register ├óΓÇáΓÇÖ Transport after initial creation.
+ *  - There is NO reverse sync from Transport ├óΓÇáΓÇÖ Register.
  *
  * The overridden_fields column on transport_list is retained for data-safety
  * and display purposes but is no longer used to gate sync behaviour.
@@ -881,7 +881,7 @@ export async function syncMemoToTransport(
     if (!existing) return;
     const patch: Record<string, unknown> = {};
     for (const [appKey, col] of SYNC_FIELD_MAP) {
-      // Calculation/financial fields are NEVER synced from Register â†’ Transport
+      // Calculation/financial fields are NEVER synced from Register ├óΓÇáΓÇÖ Transport
       // after initial creation. Only normal/operational fields sync.
       if (CALC_COLS.has(col)) continue;
       const val = (memoPatch as Record<string, unknown>)[appKey];
@@ -920,7 +920,7 @@ export async function syncMemoToTransport(
 }
 
 /** transport_list column names that belong to the CALCULATION / FINANCIAL group.
- * These fields are NEVER synced from Register â†’ Transport after initial creation.
+ * These fields are NEVER synced from Register ├óΓÇáΓÇÖ Transport after initial creation.
  * They are copied once when the memo is first created (ensureTransportEntryForMemo),
  * then Transport List owns them independently.
  * All other SYNC_FIELD_MAP columns are normal/operational and always sync
@@ -942,10 +942,10 @@ const CALC_COLS: ReadonlySet<string> = new Set([
 ]);
 
 // -------------------------- DEV UTIL ----------------------------------------
-// âš ï¸ Business data only â€” does NOT touch auth, profiles, or settings.
+// ├ó┼í┬á├»┬╕┬Å Business data only ├óΓé¼ΓÇ¥ does NOT touch auth, profiles, or settings.
 
 export async function _resetStore(): Promise<void> {
-  console.warn("_resetStore: clearing business data from Supabase â€” this cannot be undone.");
+  console.warn("_resetStore: clearing business data from Supabase ├óΓé¼ΓÇ¥ this cannot be undone.");
   await supabase.from("memo_status_history").delete().not("id", "is", null);
   await supabase.from("audit_log").delete().not("id", "is", null);
   await supabase.from("transport_list").delete().not("id", "is", null);
@@ -1122,7 +1122,7 @@ export function backupFileName(date = new Date().toISOString().slice(0, 10)): st
   return `Sahil_Road_Lines_Backup_${date}.xlsx`;
 }
 
-/** Filename prefix every backup workbook starts with — used to locate existing
+/** Filename prefix every backup workbook starts with ΓÇö used to locate existing
  *  backups in Google Drive without matching unrelated files. */
 export const BACKUP_FILENAME_PREFIX = "Sahil_Road_Lines_Backup";
 
@@ -1146,9 +1146,9 @@ export async function exportAllDataXlsx(): Promise<void> {
  * Import / RESTORE an application-exported Excel backup (Memos / Fleet /
  * Consignees / Transport / Settings sheets).
  *
- * SAFE MERGE / RESTORE SEMANTICS (idempotent â€” safe to run repeatedly):
+ * SAFE MERGE / RESTORE SEMANTICS (idempotent ├óΓé¼ΓÇ¥ safe to run repeatedly):
  *  - A record key (memo number / truck number / company name / transport entry
- *    number) that already exists in the DB AND is NOT deleted is SKIPPED â€” its
+ *    number) that already exists in the DB AND is NOT deleted is SKIPPED ├óΓé¼ΓÇ¥ its
  *    current data is never overwritten, and it is never duplicated.
  *  - A record key that exists in the DB but was SOFT-DELETED (trash) is
  *    RESTORED: it is un-deleted, deleted_at is cleared and its values are
@@ -1165,7 +1165,7 @@ export async function exportAllDataXlsx(): Promise<void> {
  *    entry_number); truck / consignee rows by truck_number / company_name.
  *  - After the Consignees and Fleet sheets are restored, each memo's
  *    consignee_id / truck_id is re-linked by an exact (case-insensitive) name /
- *    number match â€” with the free-text fallback columns always preserved.
+ *    number match ├óΓé¼ΓÇ¥ with the free-text fallback columns always preserved.
  */
 
 // -------------------------- IMPORT TYPES ------------------------------------
@@ -1339,7 +1339,7 @@ function cellNum(row: Record<string, any>, field: string): number {
 
 /** Parses a boolean cell. Accepts the app's own export format (true/false booleans,
  *  which json_to_sheet writes as TRUE/FALSE), hand-typed "Yes"/"No", and numeric
- *  1/0. Anything else (empty, "—", "N/A") -> false. */
+ *  1/0. Anything else (empty, "ΓÇö", "N/A") -> false. */
 function cellBool(row: Record<string, any>, field: string): boolean {
   const v = cellVal(row, field);
   if (v === undefined || v === null) return false;
@@ -1369,16 +1369,16 @@ function excelSerialToIso(s: number): string {
 
 /** Converts a date cell to ISO YYYY-MM-DD for Postgres `date` columns.
  *  The app exports dates via formatDate() as DD/MM/YYYY, and renders null as
- *  "—" (em-dash); raw DD/MM/YYYY or "—" must never reach Postgres (Postgres
- *  would parse DD/MM/YYYY under the MDY DateStyle and reject "—" with an
+ *  "ΓÇö" (em-dash); raw DD/MM/YYYY or "ΓÇö" must never reach Postgres (Postgres
+ *  would parse DD/MM/YYYY under the MDY DateStyle and reject "ΓÇö" with an
  *  invalid-input-syntax error). Handles dd/MM/yyyy, ISO strings, and Excel
- *  cell-value series numbers. Blank / placeholder ("—", "-", "/") -> undefined. */
+ *  cell-value series numbers. Blank / placeholder ("ΓÇö", "-", "/") -> undefined. */
 function cellDate(row: Record<string, any>, field: string): string | undefined {
   const v = cellVal(row, field);
   if (v === undefined || v === null) return undefined;
   if (typeof v === "number") return excelSerialToIso(v) || undefined;
   const s = String(v).trim();
-  if (s === "" || s === "—" || s === "-" || s === "/" || s === "--") return undefined;
+  if (s === "" || s === "ΓÇö" || s === "-" || s === "/" || s === "--") return undefined;
   const dmy = s.match(DMY_RE);
   if (dmy) {
     return `${dmy[3]}-${dmy[2].padStart(2, "0")}-${dmy[1].padStart(2, "0")}`;
@@ -1422,7 +1422,7 @@ const KIND_SHEET_NAMES: Record<SheetKind, string[]> = {
  *  single-sheet exports (the Register List / Transport List "Sheet1" files) are
  *  recognized without relying on the Full-Backup sheet names. Matching uses the
  *  same punctuation/case-insensitive normalization as cellVal and explicit
- *  signatures only â€” never fuzzy substring matching, so a Reports export ("Memo #",
+ *  signatures only ├óΓé¼ΓÇ¥ never fuzzy substring matching, so a Reports export ("Memo #",
  *  "Date", "Expenses") is correctly NOT classified as memo data. */
 function classifySheetKind(headers: string[]): SheetKind | null {
   const h = new Set(headers.map((x) => normKey(String(x))));
@@ -1438,7 +1438,7 @@ if (has("Company Name")) {
     if (has("Contact Person") || has("City") || has("State") || has("Address")) {
       return "consignees";
     }
-    return null; // "Company Name" alone is also the Settings profile — stay strict.
+    return null; // "Company Name" alone is also the Settings profile ΓÇö stay strict.
   }
   const memoPrimary =
     has("Memo") || has("Memo Number") || has("Memo No.") || has("Memo No") || has("Memo #") || has("memoNumber");
@@ -1965,7 +1965,7 @@ export async function importAllDataXlsx(file: File): Promise<ImportResult> {
             const parsed = JSON.parse(raw);
             if (parsed && typeof parsed === "object") overridden = parsed as Record<string, boolean>;
           } catch {
-            // Non-fatal â€” legacy backups may not carry this column.
+            // Non-fatal ├óΓé¼ΓÇ¥ legacy backups may not carry this column.
           }
         }
       }
@@ -2074,7 +2074,7 @@ export async function importAllDataXlsx(file: File): Promise<ImportResult> {
 
   // Every sheet that was not claimed by a supported kind gets an honest report:
   // row count + the headers we saw, so "no supported worksheets" is never a
-  // silent zero — the UI can distinguish a truly blank sheet from an
+  // silent zero ΓÇö the UI can distinguish a truly blank sheet from an
   // unrecognized-but-populated one.
   res.unknownSheets = wb.SheetNames.filter((_, i) => !claimed.has(i));
   for (const n of res.unknownSheets) {
@@ -2110,3 +2110,4 @@ export async function importAllDataXlsx(file: File): Promise<ImportResult> {
   }
   return res;
 }
+

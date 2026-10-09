@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+﻿import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppShell } from "@/components/layout/AppShell";
 import { useStoreData } from "@/lib/useStore";
 import {
@@ -27,7 +27,7 @@ const DRAFT_CACHE_KEY = "srl:new-memo:in-progress";
  * The unsaved-draft payload. The memo number is stored explicitly so that
  * reopening the page restores the SAME working memo number instead of
  * computing a new one. The memo counter is never advanced by merely opening
- * the page or saving a draft — only by actually saving the memo (createMemo).
+ * the page or saving a draft â€” only by actually saving the memo (createMemo).
  */
 type DraftCache = {
   memoNumber: string;
@@ -66,7 +66,7 @@ const emptyForm = (): MemoInput => ({
   fromLocation: "",
   toLocation: "",
   // Default starting value for the Consignee field on a NEW memo. It is only a
-  // seed — the field stays fully editable (append/edit/replace) and the value
+  // seed â€” the field stays fully editable (append/edit/replace) and the value
   // the user saves is what gets persisted. Existing memos are never touched:
   // Edit mode loads the stored value instead of this default.
   consignor: "As per the challan",
@@ -141,7 +141,7 @@ function NewMemo() {
       if (draft && draft.form) {
         const restored = { ...emptyForm(), ...draft.form };
         setForm(restored);
-        // A restored draft may carry a manually-typed Net Freight — keep the
+        // A restored draft may carry a manually-typed Net Freight â€” keep the
         // override on so the auto-calc effect cannot silently overwrite it.
         setFreightOverride(Math.abs((restored.netFreight || 0) - Math.round((restored.weightTons || 0) * (restored.ratePerTon || 0))) > 0.01);
         if (draft.memoNumber) {
@@ -151,7 +151,7 @@ function NewMemo() {
         }
         toast.info("Restored your unsaved memo");
       } else {
-        // Fresh start — show the next number as a PREVIEW only. peekNextMemoNumber
+        // Fresh start â€” show the next number as a PREVIEW only. peekNextMemoNumber
         // reads the counter and does NOT increment/reserve it; the permanent
         // increment happens solely in createMemo() at save time.
         peekNextMemoNumber().then(setNextNum);
@@ -159,7 +159,7 @@ function NewMemo() {
       return;
     }
 
-    // Edit mode: keep the existing memo number — never generate/increment.
+    // Edit mode: keep the existing memo number â€” never generate/increment.
     getMemo(edit).then((m) => {
       if (m) {
         const { id, memoNumber, isDeleted, createdAt, updatedAt, deletedAt, ...rest } = m;
@@ -207,7 +207,7 @@ function NewMemo() {
     try {
       const cache: DraftCache = { memoNumber: nextNum, form };
       localStorage.setItem(DRAFT_CACHE_KEY, JSON.stringify(cache));
-    } catch { /* quota — ignore */ }
+    } catch { /* quota â€” ignore */ }
   }, [form, nextNum, dirty, edit]);
 
   // PART 9: Auto-complete memo when final payment date is set.
@@ -261,8 +261,6 @@ function NewMemo() {
     }
     if (!form.truckNumber) return toast.error("Truck is required");
     if (!form.consigneeName) return toast.error("Consignor is required");
-    if (!form.materialName) return toast.error("Material is required");
-    if (!form.weightTons) return toast.error("Weight is required");
     if (!form.ratePerTon) return toast.error("Rate/Ton is required");
     if (!form.dispatchDate) return toast.error("Dispatch date is required");
     setSaving(true);
@@ -285,7 +283,7 @@ function NewMemo() {
         toast.success(draft ? "Draft saved" : "Memo updated");
         setDirty(false);
         if (!draft) {
-          // Finalizing a draft must create its transport entry — syncMemoToTransport
+          // Finalizing a draft must create its transport entry â€” syncMemoToTransport
           // only updates an EXISTING row, so drafts (which have none) would never
           // appear in the Transport List otherwise.
           const m = await getMemo(edit);
@@ -356,7 +354,7 @@ function NewMemo() {
               options={(consignees ?? []).map((c) => ({ value: c.companyName, label: c.companyName, keywords: `${c.city} ${c.contactPerson}` }))}
               value={form.consigneeName}
               onChange={(v) => set("consigneeName", v)}
-              placeholder="Search or type consignor…"
+              placeholder="Search or type consignorâ€¦"
               allowCustom
               createLabel="Use"
             />
@@ -374,7 +372,7 @@ function NewMemo() {
                 const t = trucks?.find((x) => normalizeTruckNumber(x.truckNumber) === norm);
                 if (t) setForm((f) => ({ ...f, driverName: t.driverName, ownerName: t.ownerName, ownerPhone: t.ownerPhone }));
               }}
-              placeholder="Search or type truck number…"
+              placeholder="Search or type truck numberâ€¦"
               allowCustom
               createLabel="Use"
             />
@@ -385,9 +383,9 @@ function NewMemo() {
         </Section>
 
         <Section title="Goods Information">
-          <Field label="Article" required><Input className="h-11" value={form.materialName} onChange={(e) => set("materialName", e.target.value)} /></Field>
-          <Field label="Weight (tons)" required><NumericInput step="0.01" value={form.weightTons || 0} onValueChange={(v) => set("weightTons", v)} /></Field>
-          <Field label="Rate / Ton (₹)" required><NumericInput value={form.ratePerTon || 0} onValueChange={(v) => set("ratePerTon", v)} /></Field>
+          <Field label="Article"><Input className="h-11" value={form.materialName} onChange={(e) => set("materialName", e.target.value)} /></Field>
+          <Field label="Weight (tons)"><NumericInput step="0.01" allowEmpty value={form.weightTons} onValueChange={(v) => set("weightTons", v)} /></Field>
+          <Field label="Rate / Ton (â‚¹)" required><NumericInput value={form.ratePerTon || 0} onValueChange={(v) => set("ratePerTon", v)} /></Field>
           <Field label="Unloading Date"><Input className="h-11" type="date" value={toInputDate(form.unloadingDate)} onChange={(e) => set("unloadingDate", fromInputDate(e.target.value))} /></Field>
           <Field label="LR Received Date"><Input className="h-11" type="date" value={toInputDate(form.lrReceivedDate)} onChange={(e) => set("lrReceivedDate", fromInputDate(e.target.value))} /></Field>
           <Field label="LR Submitted Date"><Input className="h-11" type="date" value={toInputDate(form.lrSubmittedDate)} onChange={(e) => set("lrSubmittedDate", fromInputDate(e.target.value))} /></Field>
@@ -397,21 +395,21 @@ function NewMemo() {
         </Section>
 
         <Section title="Payment Information">
-          <Field label="Net Freight (₹)">
+          <Field label="Net Freight (â‚¹)">
             <div className="flex gap-2">
               <NumericInput value={form.netFreight || 0} onValueChange={(v) => { setFreightOverride(true); set("netFreight", v); }} />
               {freightOverride && <Button variant="outline" onClick={() => setFreightOverride(false)}>Auto</Button>}
             </div>
           </Field>
-          <Field label="Total Hire (₹)"><NumericInput value={form.totalHire || 0} onValueChange={(v) => set("totalHire", v)} /></Field>
-          <Field label="Advance (₹)"><NumericInput value={form.advance || 0} onValueChange={(v) => set("advance", v)} /></Field>
-          <Field label="Balance (₹)"><Input className="h-11" value={form.balance} readOnly /></Field>
-          <Field label="Commission (₹)"><NumericInput value={form.commission || 0} onValueChange={(v) => set("commission", v)} /></Field>
-          <Field label="Loading Charges (₹)"><NumericInput value={form.loadingCharges || 0} onValueChange={(v) => set("loadingCharges", v)} /></Field>
-          <Field label="TDS (₹)"><NumericInput value={form.tds || 0} onValueChange={(v) => set("tds", v)} /></Field>
-          <Field label="Local Driver / Guide (₹)"><NumericInput value={form.localDriverGuide || 0} onValueChange={(v) => set("localDriverGuide", v)} /></Field>
-          <Field label="Payment Mamuli (₹)"><NumericInput value={form.goodsMamuli || 0} onValueChange={(v) => set("goodsMamuli", v)} /></Field>
-          <Field label="Total Expenses (₹)"><Input className="h-11" value={form.totalExpenses} readOnly /></Field>
+          <Field label="Total Hire (â‚¹)"><NumericInput value={form.totalHire || 0} onValueChange={(v) => set("totalHire", v)} /></Field>
+          <Field label="Advance (â‚¹)"><NumericInput value={form.advance || 0} onValueChange={(v) => set("advance", v)} /></Field>
+          <Field label="Balance (â‚¹)"><Input className="h-11" value={form.balance} readOnly /></Field>
+          <Field label="Commission (â‚¹)"><NumericInput value={form.commission || 0} onValueChange={(v) => set("commission", v)} /></Field>
+          <Field label="Loading Charges (â‚¹)"><NumericInput value={form.loadingCharges || 0} onValueChange={(v) => set("loadingCharges", v)} /></Field>
+          <Field label="TDS (â‚¹)"><NumericInput value={form.tds || 0} onValueChange={(v) => set("tds", v)} /></Field>
+          <Field label="Local Driver / Guide (â‚¹)"><NumericInput value={form.localDriverGuide || 0} onValueChange={(v) => set("localDriverGuide", v)} /></Field>
+          <Field label="Payment Mamuli (â‚¹)"><NumericInput value={form.goodsMamuli || 0} onValueChange={(v) => set("goodsMamuli", v)} /></Field>
+          <Field label="Total Expenses (â‚¹)"><Input className="h-11" value={form.totalExpenses} readOnly /></Field>
           <Field label="Paid At"><Input className="h-11" value={form.paidAt || ""} onChange={(e) => set("paidAt", e.target.value)} placeholder="e.g. Visakhapatnam" /></Field>
           <Field label="Paid By">
             <Select value={form.paidBy} onValueChange={(v) => set("paidBy", v)}>
@@ -427,17 +425,17 @@ function NewMemo() {
                 <SelectItem value="PhonePe">PhonePe</SelectItem>
                 <SelectItem value="GPay">GPay</SelectItem>
                 <SelectItem value="Paytm">Paytm</SelectItem>
-                <SelectItem value="Axis Bank – Current">Axis Bank – Current</SelectItem>
-                <SelectItem value="Axis Bank – Savings">Axis Bank – Savings</SelectItem>
-                <SelectItem value="HDFC Bank – Current">HDFC Bank – Current</SelectItem>
-                <SelectItem value="HDFC Bank – Savings">HDFC Bank – Savings</SelectItem>
+                <SelectItem value="Axis Bank â€“ Current">Axis Bank â€“ Current</SelectItem>
+                <SelectItem value="Axis Bank â€“ Savings">Axis Bank â€“ Savings</SelectItem>
+                <SelectItem value="HDFC Bank â€“ Current">HDFC Bank â€“ Current</SelectItem>
+                <SelectItem value="HDFC Bank â€“ Savings">HDFC Bank â€“ Savings</SelectItem>
               </SelectContent>
             </Select>
           </Field>
         </Section>
 
         <Section title="Internal Financial Details (Admin Only)">
-          <Field label="Final Payable (₹)"><NumericInput value={form.finalPayable || 0} onValueChange={(v) => set("finalPayable", v)} /></Field>
+          <Field label="Final Payable (â‚¹)"><NumericInput value={form.finalPayable || 0} onValueChange={(v) => set("finalPayable", v)} /></Field>
           <Field label="Final Payment Date"><Input className="h-11" type="date" value={toInputDate(form.finalPaymentDate)} onChange={(e) => set("finalPaymentDate", fromInputDate(e.target.value))} /></Field>
           <div className="md:col-span-2 lg:col-span-3">
             <Field label="Internal Notes (never printed)"><Textarea rows={2} value={form.internalNotes} onChange={(e) => set("internalNotes", e.target.value)} /></Field>
@@ -448,8 +446,8 @@ function NewMemo() {
       {/* Fixed action bar */}
       <div className="fixed bottom-0 left-60 right-0 z-10 flex justify-end gap-2 border-t bg-background/95 px-8 py-3 backdrop-blur">
         <Button variant="outline" disabled={saving} onClick={() => { if (!dirty || confirm("Discard unsaved changes?")) nav({ to: "/register" }); }}>Cancel</Button>
-        <Button variant="outline" disabled={saving} onClick={() => submit(true)}>{saving ? "Saving…" : "Save Draft"}</Button>
-        <Button disabled={saving} onClick={() => submit(false)}>{saving ? "Saving…" : "Save Memo"}</Button>
+        <Button variant="outline" disabled={saving} onClick={() => submit(true)}>{saving ? "Savingâ€¦" : "Save Draft"}</Button>
+        <Button disabled={saving} onClick={() => submit(false)}>{saving ? "Savingâ€¦" : "Save Memo"}</Button>
       </div>
     </AppShell>
   );
