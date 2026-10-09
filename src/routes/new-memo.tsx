@@ -385,7 +385,7 @@ function NewMemo() {
         <Section title="Goods Information">
           <Field label="Article"><Input className="h-11" value={form.materialName} onChange={(e) => set("materialName", e.target.value)} /></Field>
           <Field label="Weight (tons)"><NumericInput step="0.01" allowEmpty value={form.weightTons} onValueChange={(v) => set("weightTons", v)} /></Field>
-          <Field label="Rate / Ton (â‚¹)" required><NumericInput value={form.ratePerTon || 0} onValueChange={(v) => set("ratePerTon", v)} /></Field>
+          <Field label="Rate / Ton (₹)" required><NumericInput value={form.ratePerTon || 0} onValueChange={(v) => set("ratePerTon", v)} /></Field>
           <Field label="Unloading Date"><Input className="h-11" type="date" value={toInputDate(form.unloadingDate)} onChange={(e) => set("unloadingDate", fromInputDate(e.target.value))} /></Field>
           <Field label="LR Received Date"><Input className="h-11" type="date" value={toInputDate(form.lrReceivedDate)} onChange={(e) => set("lrReceivedDate", fromInputDate(e.target.value))} /></Field>
           <Field label="LR Submitted Date"><Input className="h-11" type="date" value={toInputDate(form.lrSubmittedDate)} onChange={(e) => set("lrSubmittedDate", fromInputDate(e.target.value))} /></Field>
@@ -393,23 +393,22 @@ function NewMemo() {
             <Field label="Description"><Textarea rows={2} value={form.description} onChange={(e) => set("description", e.target.value)} /></Field>
           </div>
         </Section>
-
         <Section title="Payment Information">
-          <Field label="Net Freight (â‚¹)">
+          <Field label="Net Freight (₹)">
             <div className="flex gap-2">
               <NumericInput value={form.netFreight || 0} onValueChange={(v) => { setFreightOverride(true); set("netFreight", v); }} />
               {freightOverride && <Button variant="outline" onClick={() => setFreightOverride(false)}>Auto</Button>}
             </div>
           </Field>
-          <Field label="Total Hire (â‚¹)"><NumericInput value={form.totalHire || 0} onValueChange={(v) => set("totalHire", v)} /></Field>
-          <Field label="Advance (â‚¹)"><NumericInput value={form.advance || 0} onValueChange={(v) => set("advance", v)} /></Field>
-          <Field label="Balance (â‚¹)"><Input className="h-11" value={form.balance} readOnly /></Field>
-          <Field label="Commission (â‚¹)"><NumericInput value={form.commission || 0} onValueChange={(v) => set("commission", v)} /></Field>
-          <Field label="Loading Charges (â‚¹)"><NumericInput value={form.loadingCharges || 0} onValueChange={(v) => set("loadingCharges", v)} /></Field>
-          <Field label="TDS (â‚¹)"><NumericInput value={form.tds || 0} onValueChange={(v) => set("tds", v)} /></Field>
-          <Field label="Local Driver / Guide (â‚¹)"><NumericInput value={form.localDriverGuide || 0} onValueChange={(v) => set("localDriverGuide", v)} /></Field>
-          <Field label="Payment Mamuli (â‚¹)"><NumericInput value={form.goodsMamuli || 0} onValueChange={(v) => set("goodsMamuli", v)} /></Field>
-          <Field label="Total Expenses (â‚¹)"><Input className="h-11" value={form.totalExpenses} readOnly /></Field>
+          <Field label="Total Hire (₹)"><NumericInput value={form.totalHire || 0} onValueChange={(v) => set("totalHire", v)} /></Field>
+          <Field label="Advance (₹)"><NumericInput value={form.advance || 0} onValueChange={(v) => set("advance", v)} /></Field>
+          <Field label="Balance (₹)"><Input className="h-11" value={form.balance} readOnly /></Field>
+          <Field label="Commission (₹)"><NumericInput value={form.commission || 0} onValueChange={(v) => set("commission", v)} /></Field>
+          <Field label="Loading Charges (₹)"><NumericInput value={form.loadingCharges || 0} onValueChange={(v) => set("loadingCharges", v)} /></Field>
+          <Field label="TDS (₹)"><NumericInput value={form.tds || 0} onValueChange={(v) => set("tds", v)} /></Field>
+          <Field label="Local Driver / Guide (₹)"><NumericInput value={form.localDriverGuide || 0} onValueChange={(v) => set("localDriverGuide", v)} /></Field>
+          <Field label="Payment Mamuli (₹)"><NumericInput value={form.goodsMamuli || 0} onValueChange={(v) => set("goodsMamuli", v)} /></Field>
+          <Field label="Total Expenses (₹)"><Input className="h-11" value={form.totalExpenses} readOnly /></Field>
           <Field label="Paid At"><Input className="h-11" value={form.paidAt || ""} onChange={(e) => set("paidAt", e.target.value)} placeholder="e.g. Visakhapatnam" /></Field>
           <Field label="Paid By">
             <Select value={form.paidBy} onValueChange={(v) => set("paidBy", v)}>
@@ -435,7 +434,7 @@ function NewMemo() {
         </Section>
 
         <Section title="Internal Financial Details (Admin Only)">
-          <Field label="Final Payable (â‚¹)"><NumericInput value={form.finalPayable || 0} onValueChange={(v) => set("finalPayable", v)} /></Field>
+          <Field label="Final Payable (₹)"><NumericInput value={form.finalPayable || 0} onValueChange={(v) => set("finalPayable", v)} /></Field>
           <Field label="Final Payment Date"><Input className="h-11" type="date" value={toInputDate(form.finalPaymentDate)} onChange={(e) => set("finalPaymentDate", fromInputDate(e.target.value))} /></Field>
           <div className="md:col-span-2 lg:col-span-3">
             <Field label="Internal Notes (never printed)"><Textarea rows={2} value={form.internalNotes} onChange={(e) => set("internalNotes", e.target.value)} /></Field>
