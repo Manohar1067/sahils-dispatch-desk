@@ -11,12 +11,7 @@ import { supabase } from "./supabaseClient";
 import { applyCompletionRules } from "./completionRules";
 
 export type TransportStatus =
-  | "Dispatched"
-  | "Delivered"
-  | "Payment Pending"
-  | "LR Received"
-  | "LR Submitted"
-  | "Completed";
+  "Dispatched" | "Delivered" | "Payment Pending" | "LR Received" | "LR Submitted" | "Completed";
 
 export const ALL_TRANSPORT_STATUSES: TransportStatus[] = [
   "Dispatched",
@@ -119,7 +114,7 @@ const FIELD_MAP: Record<string, string> = {
 };
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
- function rowToEntry(r: any): TransportEntry {
+function rowToEntry(r: any): TransportEntry {
   return {
     id: r.id,
     entryNumber: r.entry_number,
@@ -205,7 +200,9 @@ initRealtime();
 
 // -------------------------- QUERIES ------------------------------------------
 
-export async function getTransportEntries(opts?: { includeDeleted?: boolean }): Promise<TransportEntry[]> {
+export async function getTransportEntries(opts?: {
+  includeDeleted?: boolean;
+}): Promise<TransportEntry[]> {
   let q = supabase
     .from("transport_list")
     .select("*")
@@ -220,7 +217,11 @@ export async function getTransportEntries(opts?: { includeDeleted?: boolean }): 
 }
 
 export async function getTransportEntry(id: string): Promise<TransportEntry | undefined> {
-  const { data, error } = await supabase.from("transport_list").select("*").eq("id", id).maybeSingle();
+  const { data, error } = await supabase
+    .from("transport_list")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
   if (error) throw error;
   return data ? rowToEntry(data) : undefined;
 }
@@ -236,11 +237,11 @@ export async function peekNextTransportEntryNumber(): Promise<string> {
 }
 
 export async function createTransportEntry(input: TransportEntryInput): Promise<TransportEntry> {
-  const { data: entryNumber, error: numErr } = await supabase.rpc("next_transport_entry_number");
-  if (numErr) throw numErr;
+  // entry_number is assigned ATOMICALLY by the `assign_transport_entry_number`
+  // BEFORE INSERT trigger, inside this same transaction, so it can never race a
+  // concurrent reset. Do not allocate or send a number here.
   const row = {
     ...entryToRow(applyCompletionRules(input)),
-    entry_number: entryNumber,
     is_deleted: false,
   };
   const { data, error } = await supabase.from("transport_list").insert(row).select().single();
@@ -376,10 +377,18 @@ export async function ensureTransportEntryForMemo(memo: Record<string, any>): Pr
     status: memo.status,
     remarks: memo.remarks,
   };
-  const { error } = await supabase.from("transport_list").insert({
+  // entry_number is deliberately NOT sent as a plain column: the DB trigger
+  // rejects any explicit client-supplied value. The trusted SECURITY DEFINER
+  // RPC verifies the number is an existing memo number, arms the restore flag
+  // for its own insert, and is idempotent, so this can never create an
+  // arbitrary or duplicate transport row.
+  const row = {
     ...entryToRow(applyCompletionRules(input)),
-    entry_number: entryNumber,
     is_deleted: false,
+  };
+  const { error } = await supabase.rpc("mirror_memo_to_transport", {
+    p_entry_number: entryNumber,
+    p_row: row,
   });
   if (error) {
     // Non-fatal: the DB may already create this row via trigger.

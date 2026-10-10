@@ -158,15 +158,21 @@ function ReportsPage() {
   const exportPdf = async () => {
     if (!chartsRef.current) return;
     toast.info("Generating PDF…");
-    const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
-      import("html2canvas"), import("jspdf"),
-    ]);
-    const canvas = await html2canvas(chartsRef.current, { scale: 2, backgroundColor: "#ffffff" });
-    const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
-    const w = pdf.internal.pageSize.getWidth();
-    const h = (canvas.height * w) / canvas.width;
-    pdf.addImage(canvas.toDataURL("image/jpeg", 0.95), "JPEG", 0, 0, w, h);
-    pdf.save(`report-${range}.pdf`);
+    try {
+      // html2canvas-pro supports the modern CSS colors (oklch) emitted by
+      // Tailwind v4; the legacy html2canvas throws/hangs on them (see memo.$id.tsx).
+      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+        import("html2canvas-pro"), import("jspdf"),
+      ]);
+      const canvas = await html2canvas(chartsRef.current, { scale: 2, backgroundColor: "#ffffff", useCORS: true, logging: false });
+      const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+      const w = pdf.internal.pageSize.getWidth();
+      const h = (canvas.height * w) / canvas.width;
+      pdf.addImage(canvas.toDataURL("image/jpeg", 0.95), "JPEG", 0, 0, w, h);
+      pdf.save(`report-${range}.pdf`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to generate PDF");
+    }
   };
 
   return (

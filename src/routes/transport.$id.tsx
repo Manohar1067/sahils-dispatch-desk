@@ -129,9 +129,13 @@ function TransportEntryView() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={async () => {
-              await deleteTransportEntry(entry.id);
-              toast.success(`Entry ${entry.entryNumber} deleted`);
-              nav({ to: "/transport-list" });
+              try {
+                await deleteTransportEntry(entry.id);
+                toast.success(`Entry ${entry.entryNumber} deleted`);
+                nav({ to: "/transport-list" });
+              } catch (e) {
+                toast.error(e instanceof Error ? e.message : "Failed to delete entry");
+              }
             }}>Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

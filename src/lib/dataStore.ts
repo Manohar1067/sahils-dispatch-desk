@@ -23,6 +23,7 @@ import {
 import type { TransportEntry } from "./transportListStore";
 import { normalizeTruckNumber } from "./format";
 import { applyCompletionRules, buildEnforcedPatch } from "./completionRules";
+import { nextMemoNumber } from "./memoNumbering";
 
 // -----------------------------  TYPES  --------------------------------------
 // (unchanged from the original file)
@@ -55,12 +56,7 @@ export interface Consignee {
 }
 
 export type MemoStatus =
-  | "Dispatched"
-  | "Delivered"
-  | "Payment Pending"
-  | "LR Received"
-  | "LR Submitted"
-  | "Completed";
+  "Dispatched" | "Delivered" | "Payment Pending" | "LR Received" | "LR Submitted" | "Completed";
 
 export const ALL_MEMO_STATUSES: MemoStatus[] = [
   "Dispatched",
@@ -83,8 +79,8 @@ export interface Memo {
   transportName: string;
   consigneeId: string;
   truckId: string;
-  truckNumber: string;      // free text, like transportName — no link required
-  consigneeName: string;    // free text, like transportName — no link required
+  truckNumber: string; // free text, like transportName — no link required
+  consigneeName: string; // free text, like transportName — no link required
   driverName: string;
   ownerName: string;
   ownerPhone: string;
@@ -319,12 +315,7 @@ function memoToRow(m: Partial<MemoInput>): Record<string, unknown> {
     const val = (m as Record<string, unknown>)[key];
 
     if (val !== undefined) {
-      if (
-        val === "" &&
-        (col.endsWith("_date") ||
-          col === "consignee_id" ||
-          col === "truck_id")
-      ) {
+      if (val === "" && (col.endsWith("_date") || col === "consignee_id" || col === "truck_id")) {
         row[col] = null;
       } else {
         row[col] = val;
@@ -457,7 +448,11 @@ export async function getTrucks(): Promise<FleetTruck[]> {
   return (data ?? []).map(rowToTruck);
 }
 export async function getTruck(id: string): Promise<FleetTruck | undefined> {
-  const { data, error } = await supabase.from("fleet_trucks").select("*").eq("id", id).maybeSingle();
+  const { data, error } = await supabase
+    .from("fleet_trucks")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
   if (error) throw error;
   return data ? rowToTruck(data) : undefined;
 }
@@ -570,7 +565,7 @@ export async function permanentlyDeleteConsignee(id: string): Promise<void> {
 export interface TrashItem {
   kind: "Memo" | "Truck" | "Consignor" | "Transport";
   id: string;
-  label: string;       // display text — memo number / truck number / company name
+  label: string; // display text — memo number / truck number / company name
   deletedAt?: string;
 }
 
@@ -655,8 +650,9 @@ export async function peekNextMemoNumber(): Promise<string> {
     .eq("year", year)
     .maybeSingle();
   if (error) throw error;
-  const next = (data?.counter ?? 0) + 1;
-  return `SRL-${year}-${String(next).padStart(6, "0")}`;
+  // Preview must match what next_memo_number() will allocate, including the
+  // year's physical baseline.
+  return nextMemoNumber(year, data?.counter ?? 0);
 }
 
 /**
@@ -674,12 +670,16 @@ function isMissingConsignorColumn(error: { message?: string | null } | null): bo
 }
 
 export async function createMemo(input: MemoInput): Promise<Memo> {
-  const { data: memoNumber, error: numErr } = await supabase.rpc("next_memo_number");
-  if (numErr) throw numErr;
+  // The memo number is assigned ATOMICALLY by the `assign_memo_number` BEFORE
+  // INSERT trigger, inside this same transaction, under the shared numbering
+  // lock (see supabase/migrations/20261010000000_harden_counter_tables.sql).
+  // The client must NOT allocate or send a number here: a separate allocation
+  // RPC would open a window where a concurrent Reset All Data could rewind the
+  // counter. Imports/restores carry their own number and the trigger leaves it
+  // untouched (it only fills a null/empty value).
   const insert = (r: Record<string, unknown>) => supabase.from("memos").insert(r).select().single();
   const row = {
     ...memoToRow(applyCompletionRules(input)),
-    memo_number: memoNumber,
     is_deleted: false,
   };
   let { data, error } = await insert(row);
@@ -942,17 +942,30 @@ const CALC_COLS: ReadonlySet<string> = new Set([
 ]);
 
 // -------------------------- DEV UTIL ----------------------------------------
-// ⚠️ Business data only — does NOT touch auth, profiles, or settings.
+// ⚠️ Business data only — does NOT touch auth, profiles, settings, or the
+//    memo / transport numbering counters (see resetPolicy.ts).
 
+/**
+ * Clears the operational business records (memos, transport list, consignors,
+ * fleet, and their derived log rows) and restarts the ACTIVE YEAR's memo
+ * numbering at its physical baseline.
+ *
+ * The wipe runs entirely inside the `reset_all_data()` database function so it
+ * is ATOMIC — every delete plus the counter reset commits or rolls back
+ * together, never a half-wiped database. That function is `SECURITY DEFINER`
+ * and rejects any caller that is not a Super Admin, and the client cannot pass
+ * a counter value: the baseline lives in the database. The list of cleared
+ * tables lives in `resetPolicy.ts`; the transport numbering counter is left
+ * untouched.
+ *
+ * See supabase/migrations/20261010000000_harden_counter_tables.sql.
+ */
 export async function _resetStore(): Promise<void> {
-  console.warn("_resetStore: clearing business data from Supabase — this cannot be undone.");
-  await supabase.from("memo_status_history").delete().not("id", "is", null);
-  await supabase.from("audit_log").delete().not("id", "is", null);
-  await supabase.from("transport_list").delete().not("id", "is", null);
-  await supabase.from("memos").delete().not("id", "is", null);
-  await supabase.from("consignees").delete().not("id", "is", null);
-  await supabase.from("fleet_trucks").delete().not("id", "is", null);
-  await supabase.from("memo_counters").delete().not("year", "is", null);
+  console.warn("_resetStore: clearing business data via reset_all_data() — this cannot be undone.");
+  const { error } = await supabase.rpc("reset_all_data");
+  if (error) {
+    throw new Error(`Reset failed: ${error.message}`);
+  }
 }
 
 // -------------------------- BACKUP / RESTORE (PARTS 11 & 12) ---------------
@@ -1048,15 +1061,7 @@ export async function buildBackupWorkbook(): Promise<Blob> {
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(truckRows), "Fleet");
 
   const consigneeRows = consignees.map((c) =>
-    cloneKnown(c, [
-      "companyName",
-      "contactPerson",
-      "phone",
-      "city",
-      "state",
-      "address",
-      "remarks",
-    ]),
+    cloneKnown(c, ["companyName", "contactPerson", "phone", "city", "state", "address", "remarks"]),
   );
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(consigneeRows), "Consignees");
 
@@ -1205,6 +1210,12 @@ export interface ImportResult {
   consignees: ImportEntityCounts;
   transports: ImportEntityCounts;
   settingsUpdated: boolean;
+  /**
+   * False when the post-restore `reconcile_memo_counter` RPC failed. The UI
+   * must NOT report a clean success in that case — the counter may lag the
+   * restored data until a Super Admin reconciles it.
+   */
+  numberingReconciled: boolean;
   recognizedSheets: string[];
   unknownSheets: string[];
   file: { name: string; size: number };
@@ -1225,16 +1236,27 @@ type FieldDef = {
   aliases: string[];
 };
 
-const normKey = (s: string): string =>
-  s.toLowerCase().replace(/[^a-z0-9]/g, "");
+const normKey = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 
 const fieldMap: Record<string, FieldDef> = {
-  memoNumber: { aliases: ["Memo Number", "memoNumber", "Memo No.", "Memo No", "Memo #", "memo_number", "memoNo"] },
+  memoNumber: {
+    aliases: [
+      "Memo Number",
+      "memoNumber",
+      "Memo No.",
+      "Memo No",
+      "Memo #",
+      "memo_number",
+      "memoNo",
+    ],
+  },
   dispatchDate: { aliases: ["Dispatch Date", "dispatchDate", "Dispatch", "dispatch_date", "date"] },
   fromLocation: { aliases: ["From", "from_location", "fromLocation"] },
   toLocation: { aliases: ["To", "Destination", "to_location", "toLocation"] },
   transportName: { aliases: ["Transport", "transport_name", "transportName"] },
-  truckNumber: { aliases: ["Truck Number", "Truck", "Truck No.", "Truck No", "truck_number", "truckNo"] },
+  truckNumber: {
+    aliases: ["Truck Number", "Truck", "Truck No.", "Truck No", "truck_number", "truckNo"],
+  },
   consigneeName: { aliases: ["Consignee", "consignee_name", "consigneeName"] },
   driverName: { aliases: ["Driver Name", "Driver", "driver_name", "driverName"] },
   ownerName: { aliases: ["Owner Name", "Owner", "owner_name", "ownerName"] },
@@ -1242,7 +1264,9 @@ const fieldMap: Record<string, FieldDef> = {
   driverPhone: { aliases: ["Driver Phone", "driver_phone", "driverPhone"] },
   materialName: { aliases: ["Material", "Article", "material_name", "materialName"] },
   weightTons: { aliases: ["Weight (Tons)", "Weight", "weight_tons", "weightTons"] },
-  ratePerTon: { aliases: ["Rate/Ton", "Rate per Ton", "Rate/Ton (Transport)", "rate_per_ton", "ratePerTon"] },
+  ratePerTon: {
+    aliases: ["Rate/Ton", "Rate per Ton", "Rate/Ton (Transport)", "rate_per_ton", "ratePerTon"],
+  },
   netFreight: { aliases: ["Net Freight", "net_freight", "netFreight"] },
   totalHire: { aliases: ["Total Hire", "total_hire", "totalHire"] },
   advance: { aliases: ["Advance", "advance"] },
@@ -1261,10 +1285,21 @@ const fieldMap: Record<string, FieldDef> = {
   description: { aliases: ["Description", "description"] },
   gcNo: { aliases: ["G.C. No.", "GC No.", "GC No", "GC No", "gc_no", "gcNo"] },
   paidAt: { aliases: ["Paid At", "paid_at", "paidAt"] },
-  localDriverGuide: { aliases: ["Local Driver / Guide", "Local Driver/Guide", "local_driver_guide", "localDriverGuide"] },
+  localDriverGuide: {
+    aliases: [
+      "Local Driver / Guide",
+      "Local Driver/Guide",
+      "local_driver_guide",
+      "localDriverGuide",
+    ],
+  },
   unloadingDate: { aliases: ["Unloading Date", "Unloading", "unloading_date", "unloadingDate"] },
-  lrReceivedDate: { aliases: ["LR Received Date", "LR Received", "lr_received_date", "lrReceivedDate"] },
-  lrSubmittedDate: { aliases: ["LR Submitted Date", "LR Submitted", "lr_submitted_date", "lrSubmittedDate"] },
+  lrReceivedDate: {
+    aliases: ["LR Received Date", "LR Received", "lr_received_date", "lrReceivedDate"],
+  },
+  lrSubmittedDate: {
+    aliases: ["LR Submitted Date", "LR Submitted", "lr_submitted_date", "lrSubmittedDate"],
+  },
   internalNotes: { aliases: ["Internal Notes", "internal_notes", "internalNotes"] },
   isDraft: { aliases: ["Is Draft", "is_draft", "isDraft"] },
   isDeleted: { aliases: ["Is Deleted", "is_deleted", "isDeleted"] },
@@ -1275,7 +1310,17 @@ const fieldMap: Record<string, FieldDef> = {
   state: { aliases: ["State", "state"] },
   address: { aliases: ["Address", "address"] },
   insuranceExpiry: { aliases: ["Insurance Expiry", "insurance_expiry", "insuranceExpiry"] },
-  entryNumber: { aliases: ["Entry Number", "Memo Number", "Memo #", "Entry No.", "Entry No", "entry_number", "entryNo"] },
+  entryNumber: {
+    aliases: [
+      "Entry Number",
+      "Memo Number",
+      "Memo #",
+      "Entry No.",
+      "Entry No",
+      "entry_number",
+      "entryNo",
+    ],
+  },
   haltingDate: { aliases: ["Halting Date", "halting_date", "haltingDate"] },
   haltingCharge: { aliases: ["Halting Charge", "halting_charge", "haltingCharge"] },
   overriddenFields: { aliases: ["Overridden Fields", "overridden_fields", "overriddenFields"] },
@@ -1434,14 +1479,19 @@ function classifySheetKind(headers: string[]): SheetKind | null {
   if (has("Entry Number") || has("Halting Charge") || has("Rate/Ton (Transport)")) {
     return "transport";
   }
-if (has("Company Name")) {
+  if (has("Company Name")) {
     if (has("Contact Person") || has("City") || has("State") || has("Address")) {
       return "consignees";
     }
     return null; // "Company Name" alone is also the Settings profile — stay strict.
   }
   const memoPrimary =
-    has("Memo") || has("Memo Number") || has("Memo No.") || has("Memo No") || has("Memo #") || has("memoNumber");
+    has("Memo") ||
+    has("Memo Number") ||
+    has("Memo No.") ||
+    has("Memo No") ||
+    has("Memo #") ||
+    has("memoNumber");
   if (
     memoPrimary &&
     (has("Dispatch") ||
@@ -1466,6 +1516,23 @@ if (has("Company Name")) {
 
 // -------------------------- IMPORT -------------------------------------------
 
+/**
+ * After a backup restore, make sure the year's memo counter is at least as high
+ * as the highest restored/app-generated memo number and at least the physical
+ * baseline. The value is derived SERVER-SIDE by `reconcile_memo_counter(year)`
+ * from the memos actually present, so the client can never inject an arbitrary
+ * counter. That function only ever moves the counter FORWARD (GREATEST), so
+ * restoring an older backup cannot cause numbers to be reissued.
+ */
+async function reconcileMemoCounters(): Promise<void> {
+  // Deliberately NOT swallowed: a failed reconciliation means the server-side
+  // memo counter could not be brought forward after a restore, so the caller
+  // must report it rather than a clean success.
+  const year = new Date().getFullYear();
+  const { error } = await supabase.rpc("reconcile_memo_counter", { p_year: year });
+  if (error) throw error;
+}
+
 export async function importAllDataXlsx(file: File): Promise<ImportResult> {
   const XLSX = await import("xlsx");
   const debug = false; // toggle to true locally to trace every import step.
@@ -1480,9 +1547,11 @@ export async function importAllDataXlsx(file: File): Promise<ImportResult> {
       const grid = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" }) as any[][];
       const headers = ((grid[0] ?? []) as any[]).map((x) => String(x)).filter((x) => x !== "");
       console.info(
-        `[import] sheet="${n}" range=${ws["!ref"] ?? "(none)"} gridRows=${grid.length} dataRows=${Math.max(0, grid.length - (headers.length ? 1 : 0))} headers=${JSON.stringify(headers)}`
+        `[import] sheet="${n}" range=${ws["!ref"] ?? "(none)"} gridRows=${grid.length} dataRows=${Math.max(0, grid.length - (headers.length ? 1 : 0))} headers=${JSON.stringify(headers)}`,
       );
-      grid.slice(0, 6).forEach((r, i) => console.info(`[import]   row${i + 1}: ${JSON.stringify(r)}`));
+      grid
+        .slice(0, 6)
+        .forEach((r, i) => console.info(`[import]   row${i + 1}: ${JSON.stringify(r)}`));
     }
   }
 
@@ -1528,6 +1597,7 @@ export async function importAllDataXlsx(file: File): Promise<ImportResult> {
     consignees: emptyCounts(),
     transports: emptyCounts(),
     settingsUpdated: false,
+    numberingReconciled: true,
     recognizedSheets: [],
     unknownSheets: [],
     file: { name: file.name, size: file.size },
@@ -1591,7 +1661,13 @@ export async function importAllDataXlsx(file: File): Promise<ImportResult> {
           .limit(1);
         if (findErr) {
           counts.failed++;
-          ops.push({ sheet: sheetLabel, row: rowNum, key, operation: "failed", ...capErr(findErr) });
+          ops.push({
+            sheet: sheetLabel,
+            row: rowNum,
+            key,
+            operation: "failed",
+            ...capErr(findErr),
+          });
           if (debug) console.error(`[import/consignees/${rowNum}] lookup: ${findErr.message}`);
           continue;
         }
@@ -1604,7 +1680,13 @@ export async function importAllDataXlsx(file: File): Promise<ImportResult> {
               .eq("id", existing.id);
             if (error) {
               counts.failed++;
-              ops.push({ sheet: sheetLabel, row: rowNum, key, operation: "failed", ...capErr(error) });
+              ops.push({
+                sheet: sheetLabel,
+                row: rowNum,
+                key,
+                operation: "failed",
+                ...capErr(error),
+              });
               if (debug) console.error(`[import/consignees/${rowNum}] restore: ${error.message}`);
             } else {
               counts.restored++;
@@ -1618,7 +1700,13 @@ export async function importAllDataXlsx(file: File): Promise<ImportResult> {
           const { error } = await supabase.from("consignees").insert({ ...row, is_deleted: false });
           if (error) {
             counts.failed++;
-            ops.push({ sheet: sheetLabel, row: rowNum, key, operation: "failed", ...capErr(error) });
+            ops.push({
+              sheet: sheetLabel,
+              row: rowNum,
+              key,
+              operation: "failed",
+              ...capErr(error),
+            });
             if (debug) console.error(`[import/consignees/${rowNum}] insert: ${error.message}`);
           } else {
             counts.inserted++;
@@ -1682,7 +1770,13 @@ export async function importAllDataXlsx(file: File): Promise<ImportResult> {
           .limit(1);
         if (findErr) {
           counts.failed++;
-          ops.push({ sheet: sheetLabel, row: rowNum, key, operation: "failed", ...capErr(findErr) });
+          ops.push({
+            sheet: sheetLabel,
+            row: rowNum,
+            key,
+            operation: "failed",
+            ...capErr(findErr),
+          });
           if (debug) console.error(`[import/fleet/${rowNum}] lookup: ${findErr.message}`);
           continue;
         }
@@ -1695,7 +1789,13 @@ export async function importAllDataXlsx(file: File): Promise<ImportResult> {
               .eq("id", existing.id);
             if (error) {
               counts.failed++;
-              ops.push({ sheet: sheetLabel, row: rowNum, key, operation: "failed", ...capErr(error) });
+              ops.push({
+                sheet: sheetLabel,
+                row: rowNum,
+                key,
+                operation: "failed",
+                ...capErr(error),
+              });
               if (debug) console.error(`[import/fleet/${rowNum}] restore: ${error.message}`);
             } else {
               counts.restored++;
@@ -1706,10 +1806,18 @@ export async function importAllDataXlsx(file: File): Promise<ImportResult> {
             ops.push({ sheet: sheetLabel, row: rowNum, key, operation: "skipped" });
           }
         } else {
-          const { error } = await supabase.from("fleet_trucks").insert({ ...row, is_deleted: false });
+          const { error } = await supabase
+            .from("fleet_trucks")
+            .insert({ ...row, is_deleted: false });
           if (error) {
             counts.failed++;
-            ops.push({ sheet: sheetLabel, row: rowNum, key, operation: "failed", ...capErr(error) });
+            ops.push({
+              sheet: sheetLabel,
+              row: rowNum,
+              key,
+              operation: "failed",
+              ...capErr(error),
+            });
             if (debug) console.error(`[import/fleet/${rowNum}] insert: ${error.message}`);
           } else {
             counts.inserted++;
@@ -1755,6 +1863,9 @@ export async function importAllDataXlsx(file: File): Promise<ImportResult> {
     const counts = res.memos;
     const ops: ImportOperation[] = [];
     const seen = new Set<string>();
+    // New memos go through the trusted `restore_memos` RPC (one transaction)
+    // rather than row-by-row, so the numbering lock/reservation is coordinated.
+    const pendingInserts: { rowNum: number; key: string; row: Record<string, unknown> }[] = [];
     res.sheets.push({
       sheetName: sheetLabel,
       recognized: true,
@@ -1823,7 +1934,9 @@ export async function importAllDataXlsx(file: File): Promise<ImportResult> {
           isDraft: cellBool(r, "isDraft"),
         }),
       );
-      const knownTruckId = truckNumberName ? (truckIdBy.get(truckNumberName.toLowerCase()) ?? null) : null;
+      const knownTruckId = truckNumberName
+        ? (truckIdBy.get(truckNumberName.toLowerCase()) ?? null)
+        : null;
       const knownConsigneeId = consigneeNameName
         ? (consigneeIdBy.get(consigneeNameName.toLowerCase()) ?? null)
         : null;
@@ -1849,7 +1962,13 @@ export async function importAllDataXlsx(file: File): Promise<ImportResult> {
             .eq("id", existing.id);
           if (error) {
             counts.failed++;
-            ops.push({ sheet: sheetLabel, row: rowNum, key, operation: "failed", ...capErr(error) });
+            ops.push({
+              sheet: sheetLabel,
+              row: rowNum,
+              key,
+              operation: "failed",
+              ...capErr(error),
+            });
             if (debug) console.error(`[import/memos/${rowNum}] restore: ${error.message}`);
           } else {
             counts.restored++;
@@ -1861,16 +1980,46 @@ export async function importAllDataXlsx(file: File): Promise<ImportResult> {
         }
       } else {
         const wasDeleted = cellBool(r, "isDeleted");
-        const { error } = await supabase.from("memos").insert({ ...row, memo_number: memoNumber, is_deleted: wasDeleted });
-        if (error) {
-          counts.failed++;
-          ops.push({ sheet: sheetLabel, row: rowNum, key, operation: "failed", ...capErr(error) });
-          if (debug) console.error(`[import/memos/${rowNum}] insert: ${error.message}`);
-        } else {
+        pendingInserts.push({
+          rowNum,
+          key,
+          row: { ...row, memo_number: memoNumber, is_deleted: wasDeleted },
+        });
+      }
+    }
+
+    // Restore every new memo through ONE trusted RPC. `restore_memos` is ATOMIC
+    // and validate-first: it validates the whole payload, then (in one
+    // transaction under the shared numbering lock) reserves the backup's full
+    // per-year range forward-only and inserts every row. A failure anywhere
+    // rolls back the entire restore, so there is never a silent partial state.
+    // Ordinary memo creation takes the same lock, so it can never allocate a
+    // number a concurrent restore is about to recreate; the UNIQUE index on
+    // memo_number is the final backstop.
+    if (pendingInserts.length > 0) {
+      const { data, error } = await supabase.rpc("restore_memos", {
+        p_rows: pendingInserts.map((p) => p.row),
+      });
+      const ok = !error && (data as { ok?: boolean } | null)?.ok === true;
+      for (const p of pendingInserts) {
+        if (ok) {
           counts.inserted++;
-          ops.push({ sheet: sheetLabel, row: rowNum, key, operation: "inserted" });
+          ops.push({ sheet: sheetLabel, row: p.rowNum, key: p.key, operation: "inserted" });
+        } else {
+          counts.failed++;
+          const message = error?.message ?? "restore_memos failed";
+          ops.push({
+            sheet: sheetLabel,
+            row: p.rowNum,
+            key: p.key,
+            operation: "failed",
+            ...capErr({ message }),
+          });
+          if (debug) console.error(`[import/memos/${p.rowNum}] restore: ${message}`);
         }
       }
+      // Keep the per-row report in spreadsheet order (inserts are appended last).
+      ops.sort((a, b) => a.row - b.row);
     }
   }
 
@@ -1884,6 +2033,10 @@ export async function importAllDataXlsx(file: File): Promise<ImportResult> {
     const counts = res.transports;
     const ops: ImportOperation[] = [];
     const seen = new Set<string>();
+    // New transport entries go through the trusted `restore_transport_entries`
+    // RPC (one transaction) so the independent transport counter is reserved
+    // safely before insertion.
+    const pendingInserts: { rowNum: number; key: string; row: Record<string, unknown> }[] = [];
     res.sheets.push({
       sheetName: sheetLabel,
       recognized: true,
@@ -1963,7 +2116,8 @@ export async function importAllDataXlsx(file: File): Promise<ImportResult> {
         if (typeof raw === "string" && raw.trim()) {
           try {
             const parsed = JSON.parse(raw);
-            if (parsed && typeof parsed === "object") overridden = parsed as Record<string, boolean>;
+            if (parsed && typeof parsed === "object")
+              overridden = parsed as Record<string, boolean>;
           } catch {
             // Non-fatal — legacy backups may not carry this column.
           }
@@ -1992,7 +2146,13 @@ export async function importAllDataXlsx(file: File): Promise<ImportResult> {
             .eq("id", existing.id);
           if (error) {
             counts.failed++;
-            ops.push({ sheet: sheetLabel, row: rowNum, key, operation: "failed", ...capErr(error) });
+            ops.push({
+              sheet: sheetLabel,
+              row: rowNum,
+              key,
+              operation: "failed",
+              ...capErr(error),
+            });
             if (debug) console.error(`[import/transport/${rowNum}] restore: ${error.message}`);
           } else {
             counts.restored++;
@@ -2003,18 +2163,37 @@ export async function importAllDataXlsx(file: File): Promise<ImportResult> {
           ops.push({ sheet: sheetLabel, row: rowNum, key, operation: "skipped" });
         }
       } else {
-        const { error } = await supabase
-          .from("transport_list")
-          .insert({ ...row, entry_number: entryNumber, is_deleted: false });
-        if (error) {
-          counts.failed++;
-          ops.push({ sheet: sheetLabel, row: rowNum, key, operation: "failed", ...capErr(error) });
-          if (debug) console.error(`[import/transport/${rowNum}] insert: ${error.message}`);
-        } else {
+        pendingInserts.push({
+          rowNum,
+          key,
+          row: { ...row, entry_number: entryNumber, is_deleted: false },
+        });
+      }
+    }
+
+    if (pendingInserts.length > 0) {
+      const { data, error } = await supabase.rpc("restore_transport_entries", {
+        p_rows: pendingInserts.map((p) => p.row),
+      });
+      const ok = !error && (data as { ok?: boolean } | null)?.ok === true;
+      for (const p of pendingInserts) {
+        if (ok) {
           counts.inserted++;
-          ops.push({ sheet: sheetLabel, row: rowNum, key, operation: "inserted" });
+          ops.push({ sheet: sheetLabel, row: p.rowNum, key: p.key, operation: "inserted" });
+        } else {
+          counts.failed++;
+          const message = error?.message ?? "restore_transport_entries failed";
+          ops.push({
+            sheet: sheetLabel,
+            row: p.rowNum,
+            key: p.key,
+            operation: "failed",
+            ...capErr({ message }),
+          });
+          if (debug) console.error(`[import/transport/${p.rowNum}] restore: ${message}`);
         }
       }
+      ops.sort((a, b) => a.row - b.row);
     }
   }
 
@@ -2100,9 +2279,17 @@ export async function importAllDataXlsx(file: File): Promise<ImportResult> {
     // Non-fatal: subscriptions clean up lazily.
   }
   try {
+    await reconcileMemoCounters();
+  } catch (e) {
+    // The rows were restored but the server-side counter could not be brought
+    // forward. Record it so the import is never reported as a clean success.
+    res.numberingReconciled = false;
+    console.error("[import] memo numbering reconciliation failed:", e);
+  }
+  try {
     emitTransport();
   } catch {
-    // Non-fatal.
+    // Non-fatal: subscriptions clean up lazily.
   }
 
   if (debug) {
@@ -2110,4 +2297,3 @@ export async function importAllDataXlsx(file: File): Promise<ImportResult> {
   }
   return res;
 }
-

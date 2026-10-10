@@ -2,7 +2,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/layout/AppShell";
 import { useStoreData } from "@/lib/useStore";
 import {
-  getSettings, updateSettings, _resetStore, exportAllDataXlsx, importAllDataXlsx, type Settings,
+  getSettings,
+  updateSettings,
+  _resetStore,
+  exportAllDataXlsx,
+  importAllDataXlsx,
+  type Settings,
   type ImportResult,
 } from "@/lib/dataStore";
 import { supabase } from "@/lib/supabaseClient";
@@ -13,8 +18,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
-  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
   Dialog,
@@ -60,8 +71,12 @@ function formatBackupTime(iso: string): string {
   try {
     const d = new Date(iso);
     return d.toLocaleString("en-IN", {
-      day: "2-digit", month: "short", year: "numeric",
-      hour: "numeric", minute: "2-digit", hour12: true,
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
     });
   } catch {
     return iso;
@@ -84,6 +99,7 @@ function SettingsContent() {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [lastBackup, setLastBackup] = useState<string | null>(null);
   const [resetOpen, setResetOpen] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [pinDialogOpen, setPinDialogOpen] = useState(false);
   const [currentPin, setCurrentPin] = useState("");
   const [newPin, setNewPin] = useState("");
@@ -158,9 +174,16 @@ function SettingsContent() {
       setForm({ ...data, terms: data.terms?.trim() ? data.terms : DEFAULT_TERMS_TEXT });
     }
   }, [data]);
-  useEffect(() => { setLastBackup(getLastBackup()); }, []);
+  useEffect(() => {
+    setLastBackup(getLastBackup());
+  }, []);
 
-  if (!form) return <AppShell title="Settings"><div className="card-surface p-8">Loading…</div></AppShell>;
+  if (!form)
+    return (
+      <AppShell title="Settings">
+        <div className="card-surface p-8">Loading…</div>
+      </AppShell>
+    );
 
   if (!admin) {
     return (
@@ -172,7 +195,8 @@ function SettingsContent() {
     );
   }
 
-  const set = <K extends keyof Settings>(k: K, v: Settings[K]) => setForm((f) => ({ ...(f as Settings), [k]: v }));
+  const set = <K extends keyof Settings>(k: K, v: Settings[K]) =>
+    setForm((f) => ({ ...(f as Settings), [k]: v }));
 
   const save = async () => {
     if (saving) return;
@@ -187,13 +211,31 @@ function SettingsContent() {
     }
   };
 
+  const confirmReset = async () => {
+    if (resetting) return;
+    setResetting(true);
+    try {
+      await _resetStore();
+      setResetOpen(false);
+      toast.success("Business data reset. This year's memo numbering restarts from its baseline.");
+    } catch (e) {
+      // Keep the dialog open so the user can retry; a failed reset is never
+      // reported as success.
+      toast.error(e instanceof Error ? e.message : "Reset failed");
+    } finally {
+      setResetting(false);
+    }
+  };
+
   const uploadLogo = async (file: File) => {
     setUploading(true);
     try {
       // Try Supabase Storage first (bucket must be created & public)
       const ext = file.name.split(".").pop() || "png";
       const path = `logo-${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from("logos").upload(path, file, { upsert: true, contentType: file.type });
+      const { error } = await supabase.storage
+        .from("logos")
+        .upload(path, file, { upsert: true, contentType: file.type });
       if (error) throw error;
       const { data: pub } = supabase.storage.from("logos").getPublicUrl(path);
       set("logoUrl", pub.publicUrl);
@@ -209,7 +251,9 @@ function SettingsContent() {
       });
       set("logoUrl", dataUrl);
       await updateSettings({ logoUrl: dataUrl });
-      toast.warning("Storage bucket unavailable — logo embedded locally. Create a public 'logos' bucket in Supabase for hosted uploads.");
+      toast.warning(
+        "Storage bucket unavailable — logo embedded locally. Create a public 'logos' bucket in Supabase for hosted uploads.",
+      );
       console.warn("Logo upload fallback:", err);
     } finally {
       setUploading(false);
@@ -221,7 +265,11 @@ function SettingsContent() {
       await exportAllDataXlsx();
       // Only a SUCCESSFUL export advances the "Last Backup" timestamp.
       const now = new Date().toISOString();
-      try { window.localStorage.setItem(LAST_BACKUP_KEY, now); } catch { /* ignore */ }
+      try {
+        window.localStorage.setItem(LAST_BACKUP_KEY, now);
+      } catch {
+        /* ignore */
+      }
       setLastBackup(now);
       toast.success("Excel backup downloaded");
     } catch (e) {
@@ -244,12 +292,25 @@ function SettingsContent() {
       const summary = await importAllDataXlsx(importFile);
       setImportSummary(summary);
       const { memos, trucks, consignees, transports } = summary;
-      const inserted =
-        memos.inserted + trucks.inserted + consignees.inserted + transports.inserted;
-      const restored =
-        memos.restored + trucks.restored + consignees.restored + transports.restored;
+      const inserted = memos.inserted + trucks.inserted + consignees.inserted + transports.inserted;
+      const restored = memos.restored + trucks.restored + consignees.restored + transports.restored;
       const skipped = memos.skipped + trucks.skipped + consignees.skipped + transports.skipped;
-      toast.success(`Import finished: ${inserted} added, ${restored} restored, ${skipped} already present` + (summary.settingsUpdated ? ", settings updated" : ""));
+      const failed = memos.failed + trucks.failed + consignees.failed + transports.failed;
+      const detail =
+        `${inserted} added, ${restored} restored, ${skipped} already present` +
+        (summary.settingsUpdated ? ", settings updated" : "") +
+        (failed > 0 ? `, ${failed} failed` : "");
+      // Never show a clean success when numbering could not be reconciled or
+      // any row failed: the operator must know the restore needs attention.
+      if (!summary.numberingReconciled) {
+        toast.error(
+          `Import finished (${detail}) but memo numbering could NOT be reconciled — verify counters before creating memos.`,
+        );
+      } else if (failed > 0) {
+        toast.warning(`Import finished with errors: ${detail}. See the summary below for details.`);
+      } else {
+        toast.success(`Import finished: ${detail}`);
+      }
       setImportFile(null);
     } catch (e) {
       toast.error("Import failed — see console for details");
@@ -258,37 +319,116 @@ function SettingsContent() {
   };
 
   return (
-    <AppShell title="Settings" breadcrumb="Home / Settings" actions={<Button disabled={saving} onClick={save}>{saving ? "Saving…" : "Save Settings"}</Button>}>
+    <AppShell
+      title="Settings"
+      breadcrumb="Home / Settings"
+      actions={
+        <Button disabled={saving} onClick={save}>
+          {saving ? "Saving…" : "Save Settings"}
+        </Button>
+      }
+    >
       <div className="space-y-5 pb-24">
         <div className="card-surface p-6">
           <div className="section-title mb-2">Company Information</div>
           <div className="mb-5 border-b" />
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-            <div><Label>Company Name</Label><Input className="h-11 mt-1.5" value={form.companyName} onChange={(e) => set("companyName", e.target.value)} /></div>
-            <div><Label>Phone</Label><Input className="h-11 mt-1.5" value={form.phone} onChange={(e) => set("phone", e.target.value)} /></div>
-            <div><Label>Email</Label><Input className="h-11 mt-1.5" value={form.email} onChange={(e) => set("email", e.target.value)} /></div>
-            <div><Label>Website</Label><Input className="h-11 mt-1.5" value={form.website} onChange={(e) => set("website", e.target.value)} /></div>
-            <div><Label>GST Number</Label><Input className="h-11 mt-1.5" value={form.gst} onChange={(e) => set("gst", e.target.value)} /></div>
-            <div><Label>Jurisdiction Text</Label><Input className="h-11 mt-1.5" value={form.jurisdictionText} onChange={(e) => set("jurisdictionText", e.target.value)} /></div>
+            <div>
+              <Label>Company Name</Label>
+              <Input
+                className="h-11 mt-1.5"
+                value={form.companyName}
+                onChange={(e) => set("companyName", e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>Phone</Label>
+              <Input
+                className="h-11 mt-1.5"
+                value={form.phone}
+                onChange={(e) => set("phone", e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>Email</Label>
+              <Input
+                className="h-11 mt-1.5"
+                value={form.email}
+                onChange={(e) => set("email", e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>Website</Label>
+              <Input
+                className="h-11 mt-1.5"
+                value={form.website}
+                onChange={(e) => set("website", e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>GST Number</Label>
+              <Input
+                className="h-11 mt-1.5"
+                value={form.gst}
+                onChange={(e) => set("gst", e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>Jurisdiction Text</Label>
+              <Input
+                className="h-11 mt-1.5"
+                value={form.jurisdictionText}
+                onChange={(e) => set("jurisdictionText", e.target.value)}
+              />
+            </div>
             <div className="md:col-span-2">
               <Label>Address</Label>
-              <Textarea rows={3} value={form.address} onChange={(e) => set("address", e.target.value)} className="mt-1.5" />
+              <Textarea
+                rows={3}
+                value={form.address}
+                onChange={(e) => set("address", e.target.value)}
+                className="mt-1.5"
+              />
               <p className="mt-1.5 text-xs text-muted-foreground">
                 Put the H.O. address on its own line starting with &ldquo;H.O.&rdquo; — the memo
-                header prints it as a separate <strong>H.O. Address</strong> line, exactly as on
-                the original receipt.
+                header prints it as a separate <strong>H.O. Address</strong> line, exactly as on the
+                original receipt.
               </p>
             </div>
             <div className="md:col-span-2">
               <Label>Logo</Label>
               <div className="mt-1.5 flex items-center gap-4">
-                {form.logoUrl && <img src={form.logoUrl} className="h-16 w-16 rounded border object-contain" alt="logo" />}
-                {uploading ? (
-                  <div className="flex h-11 items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Uploading…</div>
-                ) : (
-                  <Input type="file" accept="image/*" className="h-11 max-w-xs" onChange={(e) => e.target.files?.[0] && uploadLogo(e.target.files[0])} />
+                {form.logoUrl && (
+                  <img
+                    src={form.logoUrl}
+                    className="h-16 w-16 rounded border object-contain"
+                    alt="logo"
+                  />
                 )}
-                {form.logoUrl && !uploading && <Button variant="ghost" onClick={() => { set("logoUrl", ""); updateSettings({ logoUrl: "" }); }}>Remove</Button>}
+                {uploading ? (
+                  <div className="flex h-11 items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Uploading…
+                  </div>
+                ) : (
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    className="h-11 max-w-xs"
+                    onChange={(e) => e.target.files?.[0] && uploadLogo(e.target.files[0])}
+                  />
+                )}
+                {form.logoUrl && !uploading && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      set("logoUrl", "");
+                      updateSettings({ logoUrl: "" });
+                    }}
+                  >
+                    Remove
+                  </Button>
+                )}
               </div>
             </div>
           </div>
@@ -298,20 +438,19 @@ function SettingsContent() {
           <div className="section-title mb-2">Printed Terms &amp; Conditions</div>
           <div className="mb-5 border-b" />
           <p className="mb-3 text-xs text-muted-foreground">
-            One condition per line. The receipt prints these automatically in up to three
-            columns (1&ndash;5 in the first, 6&ndash;10 in the second, 11&ndash;15 in the third).
-            Leave the box empty to print the {DEFAULT_TERMS.length} conditions from the original
-            Sahil Road Lines Conditions document.
+            One condition per line. The receipt prints these automatically in up to three columns
+            (1&ndash;5 in the first, 6&ndash;10 in the second, 11&ndash;15 in the third). Leave the
+            box empty to print the {DEFAULT_TERMS.length} conditions from the original Sahil Road
+            Lines Conditions document.
           </p>
           <Textarea rows={10} value={form.terms} onChange={(e) => set("terms", e.target.value)} />
           <div className="mt-3 flex items-center gap-3">
-            <Button
-              variant="outline"
-              onClick={() => set("terms", DEFAULT_TERMS_TEXT)}
-            >
+            <Button variant="outline" onClick={() => set("terms", DEFAULT_TERMS_TEXT)}>
               Restore the original {DEFAULT_TERMS.length} conditions
             </Button>
-            <Button variant="ghost" onClick={() => set("terms", "")}>Clear (use printed defaults)</Button>
+            <Button variant="ghost" onClick={() => set("terms", "")}>
+              Clear (use printed defaults)
+            </Button>
           </div>
         </div>
 
@@ -436,16 +575,29 @@ function SettingsContent() {
             </span>
           </div>
           <div className="flex flex-wrap gap-3">
-            <Button variant="outline" onClick={exportAll}>Export All Data (Excel)</Button>
-            <Button variant="outline" onClick={pickImportFile}>Import Excel…</Button>
-            <input ref={importInputRef} type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden onChange={onImportFile} />
-            <Button variant="destructive" onClick={() => setResetOpen(true)}>Reset All Data</Button>
+            <Button variant="outline" onClick={exportAll}>
+              Export All Data (Excel)
+            </Button>
+            <Button variant="outline" onClick={pickImportFile}>
+              Import Excel…
+            </Button>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              hidden
+              onChange={onImportFile}
+            />
+            <Button variant="destructive" onClick={() => setResetOpen(true)}>
+              Reset All Data
+            </Button>
           </div>
           <div className="mt-3 text-xs text-muted-foreground">
-            Export downloads an Excel workbook (Memos / Fleet / Consignees / Transport / Settings sheets). Import can read that workbook
-            or a single-sheet Register / Transport List export ("Sheet1"), merging records safely
-            using memo number, truck number, and company name as stable identifiers:
-            existing records are never overwritten or duplicated, records previously deleted are restored, and missing records are added.
+            Export downloads an Excel workbook (Memos / Fleet / Consignees / Transport / Settings
+            sheets). Import can read that workbook or a single-sheet Register / Transport List
+            export ("Sheet1"), merging records safely using memo number, truck number, and company
+            name as stable identifiers: existing records are never overwritten or duplicated,
+            records previously deleted are restored, and missing records are added.
           </div>
 
           {/* Google Drive — a separate authorisation from the Sahil Road Lines login.
@@ -457,7 +609,9 @@ function SettingsContent() {
       </div>
 
       <div className="fixed bottom-0 left-60 right-0 z-10 flex justify-end gap-2 border-t bg-background/95 px-8 py-3 backdrop-blur">
-        <Button disabled={saving} onClick={save}>{saving ? "Saving…" : "Save Settings"}</Button>
+        <Button disabled={saving} onClick={save}>
+          {saving ? "Saving…" : "Save Settings"}
+        </Button>
       </div>
 
       {/* Import confirm */}
@@ -466,9 +620,10 @@ function SettingsContent() {
           <AlertDialogHeader>
             <AlertDialogTitle>Import Excel backup?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will safely merge memos, trucks, consignees, and settings from the selected Excel file.
-              Records that already exist are skipped (never overwritten or duplicated); records that were previously
-              deleted are restored; missing records are added. This action cannot be undone.
+              This will safely merge memos, trucks, consignees, and settings from the selected Excel
+              file. Records that already exist are skipped (never overwritten or duplicated);
+              records that were previously deleted are restored; missing records are added. This
+              action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -501,7 +656,9 @@ function SettingsContent() {
                                 : ` — ${s.rows} row(s) present, but headers could not be recognized: ${s.columns.slice(0, 8).join(" · ")}${s.columns.length > 8 ? " …" : ""}`}
                             </li>
                           ))}
-                          {importSummary.sheets.length === 0 && <li>— a blank/malformed file was read; no sheets found.</li>}
+                          {importSummary.sheets.length === 0 && (
+                            <li>— a blank/malformed file was read; no sheets found.</li>
+                          )}
                         </ul>
                       </>
                     ) : (
@@ -513,13 +670,14 @@ function SettingsContent() {
                           { label: "Consignees", c: importSummary.consignees },
                         ].map(({ label, c }) => (
                           <div key={label}>
-                            <b>{label}:</b> {c.inserted + c.restored} imported ({c.inserted} added, {c.restored} restored),{" "}
-                            {c.skipped} already present, {c.failed} failed, {c.duplicate} duplicate-in-file
+                            <b>{label}:</b> {c.inserted + c.restored} imported ({c.inserted} added,{" "}
+                            {c.restored} restored), {c.skipped} already present, {c.failed} failed,{" "}
+                            {c.duplicate} duplicate-in-file
                           </div>
                         ))}
                         {(() => {
                           const failed = importSummary.sheets.flatMap((s) =>
-                            s.operations.filter((o) => o.operation === "failed")
+                            s.operations.filter((o) => o.operation === "failed"),
                           );
                           if (failed.length === 0) return null;
                           return (
@@ -539,20 +697,27 @@ function SettingsContent() {
                             </details>
                           );
                         })()}
-                        {importSummary.settingsUpdated && <div><b>Settings:</b> updated</div>}
+                        {importSummary.settingsUpdated && (
+                          <div>
+                            <b>Settings:</b> updated
+                          </div>
+                        )}
                         {importSummary.unknownSheets.length > 0 && (
                           <p className="text-muted-foreground">
                             Unrecognized sheet(s) — not imported:{" "}
                             {importSummary.sheets
                               .filter((s) => !s.recognized)
-                              .map((s) => `${s.sheetName} (${s.rows} row${s.rows === 1 ? "" : "s"})`)
+                              .map(
+                                (s) => `${s.sheetName} (${s.rows} row${s.rows === 1 ? "" : "s"})`,
+                              )
                               .join(", ")}
                           </p>
                         )}
                       </>
                     )}
                     <p className="text-xs text-muted-foreground">
-                      File: {importSummary.file.name} ({importSummary.file.size.toLocaleString()} bytes)
+                      File: {importSummary.file.name} ({importSummary.file.size.toLocaleString()}{" "}
+                      bytes)
                     </p>
                   </div>
                 </>
@@ -579,14 +744,27 @@ function SettingsContent() {
                 <li>Fleet Management</li>
               </ul>
               <p className="mt-2">
-                User accounts, authentication, settings, and your current login will <b>NOT</b> be affected.
-                Consider exporting a backup first.
+                User accounts, authentication, settings, and your current login will <b>NOT</b> be
+                affected. This year's memo numbering restarts from its physical baseline, so the
+                next memo continues after the last memo issued on paper and nothing is re-issued.
+                The transport numbering sequence is preserved.
               </p>
+              <p className="mt-2">Consider exporting a backup first.</p>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={async () => { await _resetStore(); setResetOpen(false); toast.success("Business data reset"); }}>Reset Business Data</AlertDialogAction>
+            <AlertDialogCancel disabled={resetting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={resetting}
+              onClick={(e) => {
+                // Prevent Radix from closing the dialog before the DB confirms;
+                // confirmReset closes it only on success.
+                e.preventDefault();
+                void confirmReset();
+              }}
+            >
+              {resetting ? "Resetting…" : "Reset Business Data"}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

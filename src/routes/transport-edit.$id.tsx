@@ -151,6 +151,7 @@ function TransportEditPage() {
 
   const submit = async () => {
     if (!form) return;
+    if (saving) return;
     if (!admin) {
       toast.error("Viewers have read-only access. Only a Super Admin can edit transport entries.");
       return;
