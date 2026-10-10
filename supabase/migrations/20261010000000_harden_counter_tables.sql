@@ -1077,12 +1077,12 @@ begin
   -- above are removed too. Safe ONLY while `audit_log` has no FK pointing into
   -- the tables below — confirm with pre-flight (g); if it does, move its delete
   -- before the referenced table.
-  delete from public.memo_status_history;
-  delete from public.transport_list;
-  delete from public.memos;
-  delete from public.consignees;
-  delete from public.fleet_trucks;
-  delete from public.audit_log;
+  delete from public.memo_status_history where true;
+  delete from public.transport_list where true;
+  delete from public.memos where true;
+  delete from public.consignees where true;
+  delete from public.fleet_trucks where true;
+  delete from public.audit_log where true;
 
   -- Operational data is gone: NOW the active-year memo counter may be lowered.
   update public.memo_counters set counter = v_baseline where year = v_year;
