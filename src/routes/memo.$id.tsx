@@ -616,6 +616,7 @@ export const ReceiptPage = forwardRef<
               fontFamily: CASTELLAR,
               maxWidth: "100%",
               whiteSpace: "nowrap",
+              textTransform: "uppercase",
             }}
           >
             {companyBrand(settings.companyName)}
@@ -882,7 +883,7 @@ export const ReceiptPage = forwardRef<
           <div style={{ fontSize: `${fs(10)}px`, fontWeight: 600, color: "#777" }}>on behalf of the Owner</div>
         </div>
         <div style={{ flex: 1, padding: `${s(6)}px 14px`, textAlign: "center", minHeight: `${s(112)}px` }}>
-          <div style={{ fontSize: `${fs(11)}px`, fontWeight: 700, color: "#555", marginTop: `${s(66)}px` }}>For <b style={{ color: NAVY, fontWeight: 800 }}>{companyBrand(settings.companyName)}</b></div>
+          <div style={{ fontSize: `${fs(11)}px`, fontWeight: 700, color: "#555", marginTop: `${s(66)}px` }}>For <b style={{ color: NAVY, fontWeight: 800, textTransform: "uppercase" }}>{companyBrand(settings.companyName)}</b></div>
           <div style={{ fontSize: `${fs(10)}px`, fontWeight: 600, color: "#777" }}>Authorised Signatory</div>
         </div>
       </div>

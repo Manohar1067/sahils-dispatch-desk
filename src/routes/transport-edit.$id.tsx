@@ -157,7 +157,6 @@ function TransportEditPage() {
       return;
     }
     if (!form.truckNumber) return toast.error("Truck is required");
-    if (!form.materialName) return toast.error("Material is required");
     if (!form.dispatchDate) return toast.error("Dispatch date is required");
     setSaving(true);
     try {
@@ -272,8 +271,8 @@ function TransportEditPage() {
         </Section>
 
         <Section title="Goods Information">
-          <Field label="Material" required><Input className="h-11" value={form.materialName} onChange={(e) => set("materialName", e.target.value)} /></Field>
-          <Field label="Weight (tons)" required>
+          <Field label="Article"><Input className="h-11" value={form.materialName} onChange={(e) => set("materialName", e.target.value)} /></Field>
+          <Field label="Weight (tons)">
             <NumericInput step="0.01" value={form.weightTons ?? 0} onValueChange={(v) => setAndRecalc("weightTons", v)} />
           </Field>
           <Field label="Rate/Ton (Transport) (₹)" required>
@@ -295,7 +294,7 @@ function TransportEditPage() {
           <Field label="Commission (₹)"><NumericInput value={form.commission ?? 0} onValueChange={(v) => setAndRecalc("commission", v)} /></Field>
           <Field label="Loading Charges (₹)"><NumericInput value={form.loadingCharges ?? 0} onValueChange={(v) => setAndRecalc("loadingCharges", v)} /></Field>
           <Field label="TDS (₹)"><NumericInput value={form.tds ?? 0} onValueChange={(v) => setAndRecalc("tds", v)} /></Field>
-          <Field label="Goods Mamuli (₹)"><NumericInput value={form.goodsMamuli ?? 0} onValueChange={(v) => setAndRecalc("goodsMamuli", v)} /></Field>
+          <Field label="Payment Mamuli (₹)"><NumericInput value={form.goodsMamuli ?? 0} onValueChange={(v) => setAndRecalc("goodsMamuli", v)} /></Field>
           <Field label="Total Expenses (₹)"><NumericInput value={form.totalExpenses ?? 0} onValueChange={(v) => set("totalExpenses", v)} /></Field>
           <Field label="Paid By">
             <Select value={form.paidBy} onValueChange={(v) => set("paidBy", v)}>
