@@ -109,7 +109,7 @@ function TransportEntryView() {
           <Row label="Commission" value={formatMoney(entry.commission)} />
           <Row label="Loading Charges" value={formatMoney(entry.loadingCharges)} />
           <Row label="TDS" value={formatMoney(entry.tds)} />
-          <Row label="Goods Mamuli" value={formatMoney(entry.goodsMamuli)} />
+          <Row label="Payment Mamuli" value={formatMoney(entry.goodsMamuli)} />
           <Row label="Total Expenses" value={formatMoney(entry.totalExpenses)} />
           <Row label="Paid By" value={entry.paidBy === "SRL" ? "Sahil" : entry.paidBy === "KAREEM" ? "Kareem" : entry.paidBy || "—"} />
           <Row label="Payment Method" value={entry.paymentMethod || "—"} />

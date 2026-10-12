@@ -166,8 +166,6 @@ function NewTransportEntry() {
     }
     if (!form.truckNumber) return toast.error("Truck is required");
     if (!form.consigneeName) return toast.error("Consignor is required");
-    if (!form.materialName) return toast.error("Material is required");
-    if (!form.weightTons) return toast.error("Weight is required");
     if (!form.ratePerTon) return toast.error("Rate/Ton (Transport) is required");
     if (!form.dispatchDate) return toast.error("Dispatch date is required");
     setSaving(true);
@@ -274,8 +272,8 @@ function NewTransportEntry() {
         </Section>
 
         <Section title="Goods Information">
-          <Field label="Material" required><Input className="h-11" value={form.materialName} onChange={(e) => set("materialName", e.target.value)} /></Field>
-          <Field label="Weight (tons)" required><NumericInput step="0.01" value={form.weightTons || 0} onValueChange={(v) => set("weightTons", v)} /></Field>
+          <Field label="Article"><Input className="h-11" value={form.materialName} onChange={(e) => set("materialName", e.target.value)} /></Field>
+          <Field label="Weight (tons)"><NumericInput step="0.01" value={form.weightTons || 0} onValueChange={(v) => set("weightTons", v)} /></Field>
           <Field label="Rate/Ton (Transport) (₹)" required><NumericInput value={form.ratePerTon || 0} onValueChange={(v) => set("ratePerTon", v)} /></Field>
           <Field label="Unloading Date"><Input className="h-11" type="date" value={toInputDate(form.unloadingDate)} onChange={(e) => set("unloadingDate", fromInputDate(e.target.value))} /></Field>
           <Field label="Halting Charge (₹)"><NumericInput value={form.haltingCharge || 0} onValueChange={(v) => set("haltingCharge", v)} /></Field>
@@ -298,7 +296,7 @@ function NewTransportEntry() {
           <Field label="Commission (₹)"><NumericInput value={form.commission || 0} onValueChange={(v) => set("commission", v)} /></Field>
           <Field label="Loading Charges (₹)"><NumericInput value={form.loadingCharges || 0} onValueChange={(v) => set("loadingCharges", v)} /></Field>
           <Field label="TDS (₹)"><NumericInput value={form.tds || 0} onValueChange={(v) => set("tds", v)} /></Field>
-          <Field label="Goods Mamuli (₹)"><NumericInput value={form.goodsMamuli || 0} onValueChange={(v) => set("goodsMamuli", v)} /></Field>
+          <Field label="Payment Mamuli (₹)"><NumericInput value={form.goodsMamuli || 0} onValueChange={(v) => set("goodsMamuli", v)} /></Field>
           <Field label="Total Expenses (₹)"><Input className="h-11" value={form.totalExpenses} readOnly /></Field>
           <Field label="Paid By">
             <Select value={form.paidBy} onValueChange={(v) => set("paidBy", v)}>
